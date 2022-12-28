@@ -1,0 +1,6 @@
+[submodule "Vi/Vendor/glfw"]
+	path = Vi/Vendor/glfw
+	url = https://github.com/Drockk/glfw.git
+[submodule "Vi/Vendor/vk-bootstrap"]
+	path = Vi/Vendor/vk-bootstrap
+	url = https://github.com/Drockk/vk-bootstrap.git
