@@ -11,6 +11,8 @@ project "Vi"
     {
         "Source/**.hpp",
         "Source/**.cpp",
+        "%{IncludeDir.glm}/glm/**.hpp",
+        "%{IncludeDir.glm}/glm/**.inl",
         "%{IncludeDir.vkbootstrap}/*.h",
         "%{IncludeDir.vkbootstrap}/*.cpp",
     }
@@ -19,6 +21,8 @@ project "Vi"
     {
         "Source",
         "%{IncludeDir.glfw}",
+        "%{IncludeDir.glm}",
+        "%{IncludeDir.vma}",
         "%{IncludeDir.vkbootstrap}",
         "%{IncludeDir.VulkanSDK}"
     }

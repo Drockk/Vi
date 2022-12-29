@@ -5,6 +5,9 @@
 
 #include <fstream>
 
+#define VMA_IMPLEMENTATION
+#include "vk_mem_alloc.h"
+
 static int selectedShader{ 0 };
 
 void ViEngine::init() {
@@ -41,6 +44,8 @@ void ViEngine::init() {
 	initSyncStructures();
 	initPipelines();
 
+	loadMeshes();
+
 	//Loop until the user closes the window
 	isInitialized = true;
 }
@@ -52,6 +57,7 @@ void ViEngine::cleanup() {
 
 		mainDeletionQueue.flush();
 
+		vmaDestroyAllocator(allocator);
 		vkDestroyDevice(device, nullptr);
 		vkDestroySurfaceKHR(instance, surface, nullptr);
 		vkb::destroy_debug_utils_messenger(instance, debugMessenger);
@@ -110,18 +116,14 @@ void ViEngine::draw() {
 
 	vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-	if (selectedShader == 0)
-	{
-		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, trianglePipeline);
-	}
-	else
-	{
-		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, redTrianglePipeline);
-	}
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, meshPipeline);
 
+	//bind the mesh vertex buffer with offset 0
+	VkDeviceSize offset = 0;
+	vkCmdBindVertexBuffers(cmd, 0, 1, &triangleMesh.vertexBuffer.buffer, &offset);
 
-	vkCmdDraw(cmd, 3, 1, 0, 0);
-
+	//we can now draw the mesh
+	vkCmdDraw(cmd, triangleMesh.vertices.size(), 1, 0, 0);
 
 	//finalize the render pass
 	vkCmdEndRenderPass(cmd);
@@ -220,6 +222,13 @@ void ViEngine::initVulkan() {
 	// use vkbootstrap to get a Graphics queue
 	graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
 	graphicsQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
+
+	//initialize the memory allocator
+	VmaAllocatorCreateInfo allocatorInfo = {};
+	allocatorInfo.physicalDevice = chosenGPU;
+	allocatorInfo.device = device;
+	allocatorInfo.instance = instance;
+	vmaCreateAllocator(&allocatorInfo, &allocator);
 }
 
 void ViEngine::initSwapchain() {
@@ -458,17 +467,54 @@ void ViEngine::initPipelines() {
 	//build the red triangle pipeline
 	redTrianglePipeline = pipelineBuilder.buildPipeline(device, renderPass);
 
+	//build the mesh pipeline
+
+	VertexInputDescription vertexDescription = Vertex::getVertexDescription();
+
+	//connect the pipeline builder vertex input info to the one we get from Vertex
+	pipelineBuilder.vertexInputInfo.pVertexAttributeDescriptions = vertexDescription.attributes.data();
+	pipelineBuilder.vertexInputInfo.vertexAttributeDescriptionCount = vertexDescription.attributes.size();
+
+	pipelineBuilder.vertexInputInfo.pVertexBindingDescriptions = vertexDescription.bindings.data();
+	pipelineBuilder.vertexInputInfo.vertexBindingDescriptionCount = vertexDescription.bindings.size();
+
+	//clear the shader stages for the builder
+	pipelineBuilder.shaderStages.clear();
+
+	//compile mesh vertex shader
+
+
+	VkShaderModule meshVertShader;
+	if (!loadShaderModule("../shaders/tri_mesh.vert.spv", &meshVertShader))
+	{
+		std::cout << "Error when building the triangle vertex shader module" << std::endl;
+	}
+	else {
+		std::cout << "Red Triangle vertex shader successfully loaded" << std::endl;
+	}
+
+	//add the other shaders
+	pipelineBuilder.shaderStages.push_back(viinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, meshVertShader));
+
+	//make sure that triangleFragShader is holding the compiled colored_triangle.frag
+	pipelineBuilder.shaderStages.push_back(viinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, triangleFragShader));
+
+	//build the mesh triangle pipeline
+	meshPipeline = pipelineBuilder.buildPipeline(device, renderPass);
+
+	//deleting all of the vulkan shaders
+	vkDestroyShaderModule(device, meshVertShader, nullptr);
 	vkDestroyShaderModule(device, redTriangleVertShader, nullptr);
 	vkDestroyShaderModule(device, redTriangleFragShader, nullptr);
 	vkDestroyShaderModule(device, triangleFragShader, nullptr);
 	vkDestroyShaderModule(device, triangleVertexShader, nullptr);
 
+	//adding the pipelines to the deletion queue
 	mainDeletionQueue.push_function([=]() {
-		//destroy the 2 pipelines we have created
 		vkDestroyPipeline(device, redTrianglePipeline, nullptr);
 	vkDestroyPipeline(device, trianglePipeline, nullptr);
+	vkDestroyPipeline(device, meshPipeline, nullptr);
 
-	//destroy the pipeline layout that they use
 	vkDestroyPipelineLayout(device, trianglePipelineLayout, nullptr);
 		});
 }
@@ -513,6 +559,60 @@ bool ViEngine::loadShaderModule(const char* filePath, VkShaderModule* outShaderM
 	}
 	*outShaderModule = shaderModule;
 	return true;
+}
+
+void ViEngine::loadMeshes() {
+	//make the array 3 vertices long
+	triangleMesh.vertices.resize(3);
+
+	//vertex positions
+	triangleMesh.vertices[0].position = { 1.f, 1.f, 0.0f };
+	triangleMesh.vertices[1].position = { -1.f, 1.f, 0.0f };
+	triangleMesh.vertices[2].position = { 0.f,-1.f, 0.0f };
+
+	//vertex colors, all green
+	triangleMesh.vertices[0].color = { 0.f, 1.f, 0.0f }; //pure green
+	triangleMesh.vertices[1].color = { 0.f, 1.f, 0.0f }; //pure green
+	triangleMesh.vertices[2].color = { 0.f, 1.f, 0.0f }; //pure green
+
+	//we don't care about the vertex normals
+
+	uploadMesh(triangleMesh);
+}
+
+void ViEngine::uploadMesh(Mesh& mesh) {
+	//allocate vertex buffer
+	VkBufferCreateInfo bufferInfo = {};
+	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	//this is the total size, in bytes, of the buffer we are allocating
+	bufferInfo.size = mesh.vertices.size() * sizeof(Vertex);
+	//this buffer is going to be used as a Vertex Buffer
+	bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+
+
+	//let the VMA library know that this data should be writeable by CPU, but also readable by GPU
+	VmaAllocationCreateInfo vmaallocInfo = {};
+	vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+
+	//allocate the buffer
+	VK_CHECK(vmaCreateBuffer(allocator, &bufferInfo, &vmaallocInfo,
+		&mesh.vertexBuffer.buffer,
+		&mesh.vertexBuffer.allocation,
+		nullptr));
+
+	//add the destruction of triangle mesh buffer to the deletion queue
+	mainDeletionQueue.push_function([=]() {
+
+		vmaDestroyBuffer(allocator, mesh.vertexBuffer.buffer, mesh.vertexBuffer.allocation);
+		});
+
+	//copy vertex data
+	void* data;
+	vmaMapMemory(allocator, mesh.vertexBuffer.allocation, &data);
+
+	memcpy(data, mesh.vertices.data(), mesh.vertices.size() * sizeof(Vertex));
+
+	vmaUnmapMemory(allocator, mesh.vertexBuffer.allocation);
 }
 
 VkPipeline PipelineBuilder::buildPipeline(VkDevice device, VkRenderPass pass) {

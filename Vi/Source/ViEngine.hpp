@@ -12,6 +12,8 @@
 #include <functional>
 #include <deque>
 
+#include "ViMesh.hpp"
+
 #define VK_CHECK(x)                                                     \
     do                                                                  \
     {                                                                   \
@@ -108,7 +110,15 @@ private:
     //loads a shader module from a spir-v file. Returns false if it errors
     bool loadShaderModule(const char* filePath, VkShaderModule* outShaderModule);
 
+    void loadMeshes();
+
+    void uploadMesh(Mesh& mesh);
+
     DeletionQueue mainDeletionQueue;
+    VmaAllocator allocator;
+
+    VkPipeline meshPipeline;
+    Mesh triangleMesh;
 };
 
 class PipelineBuilder {
