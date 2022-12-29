@@ -14,6 +14,14 @@
 
 #include "ViMesh.hpp"
 
+//add the include for glm to get matrices
+#include <glm/glm.hpp>
+
+struct MeshPushConstants {
+    glm::vec4 data;
+    glm::mat4 render_matrix;
+};
+
 #define VK_CHECK(x)                                                     \
     do                                                                  \
     {                                                                   \
@@ -118,7 +126,9 @@ private:
     VmaAllocator allocator;
 
     VkPipeline meshPipeline;
+    VkPipelineLayout meshPipelineLayout;
     Mesh triangleMesh;
+    Mesh monkeyMesh;
 };
 
 class PipelineBuilder {
