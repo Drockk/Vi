@@ -129,6 +129,10 @@ private:
     VkPipelineLayout meshPipelineLayout;
     Mesh triangleMesh;
     Mesh monkeyMesh;
+
+    VkImageView depthImageView;
+    AllocatedImage depthImage;
+    VkFormat depthFormat;
 };
 
 class PipelineBuilder {
@@ -142,6 +146,8 @@ public:
     VkPipelineColorBlendAttachmentState colorBlendAttachment;
     VkPipelineMultisampleStateCreateInfo multisampling;
     VkPipelineLayout pipelineLayout;
+    //others
+    VkPipelineDepthStencilStateCreateInfo depthStencil;
 
     VkPipeline buildPipeline(VkDevice device, VkRenderPass pass);
 };

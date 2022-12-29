@@ -71,52 +71,47 @@ void ViEngine::cleanup() {
 }
 
 void ViEngine::draw() {
-	//wait until the GPU has finished rendering the last frame. Timeout of 1 second
+	//wait until the gpu has finished rendering the last frame. Timeout of 1 second
 	VK_CHECK(vkWaitForFences(device, 1, &renderFence, true, 1000000000));
 	VK_CHECK(vkResetFences(device, 1, &renderFence));
-
-	//request image from the swapchain, one second timeout
-	uint32_t swapchainImageIndex;
-	VK_CHECK(vkAcquireNextImageKHR(device, swapchain, 1000000000, presentSemaphore, nullptr, &swapchainImageIndex));
 
 	//now that we are sure that the commands finished executing, we can safely reset the command buffer to begin recording again.
 	VK_CHECK(vkResetCommandBuffer(mainCommandBuffer, 0));
 
+	//request image from the swapchain
+	uint32_t swapchainImageIndex;
+	VK_CHECK(vkAcquireNextImageKHR(device, swapchain, 1000000000, presentSemaphore, nullptr, &swapchainImageIndex));
+
 	//naming it cmd for shorter writing
 	VkCommandBuffer cmd = mainCommandBuffer;
 
-	//begin the command buffer recording. We will use this command buffer exactly once, so we want to let Vulkan know that
-	VkCommandBufferBeginInfo cmdBeginInfo = {};
-	cmdBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	cmdBeginInfo.pNext = nullptr;
-
-	cmdBeginInfo.pInheritanceInfo = nullptr;
-	cmdBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	//begin the command buffer recording. We will use this command buffer exactly once, so we want to let vulkan know that
+	VkCommandBufferBeginInfo cmdBeginInfo = viinit::commandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
 	VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
 
-	//make a clear-color from frame number. This will flash with a 120*pi frame period.
+	//make a clear-color from frame number. This will flash with a 120 frame period.
 	VkClearValue clearValue;
 	float flash = abs(sin(frameNumber / 120.f));
 	clearValue.color = { { 0.0f, 0.0f, flash, 1.0f } };
 
-	//start the main renderpass.
-	//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
-	VkRenderPassBeginInfo rpInfo = {};
-	rpInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-	rpInfo.pNext = nullptr;
+	//clear depth at 1
+	VkClearValue depthClear;
+	depthClear.depthStencil.depth = 1.f;
 
-	rpInfo.renderPass = renderPass;
-	rpInfo.renderArea.offset.x = 0;
-	rpInfo.renderArea.offset.y = 0;
-	rpInfo.renderArea.extent = windowExtent;
-	rpInfo.framebuffer = framebuffers[swapchainImageIndex];
+	//start the main renderpass. 
+	//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
+	VkRenderPassBeginInfo rpInfo = viinit::renderpassBeginInfo(renderPass, windowExtent, framebuffers[swapchainImageIndex]);
 
 	//connect clear values
-	rpInfo.clearValueCount = 1;
-	rpInfo.pClearValues = &clearValue;
+	rpInfo.clearValueCount = 2;
+
+	VkClearValue clearValues[] = { clearValue, depthClear };
+
+	rpInfo.pClearValues = &clearValues[0];
 
 	vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
+
 
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, meshPipeline);
 
@@ -154,14 +149,11 @@ void ViEngine::draw() {
 	//finalize the command buffer (we can no longer add commands, but it can now be executed)
 	VK_CHECK(vkEndCommandBuffer(cmd));
 
-	//prepare the submission to the queue.
+	//prepare the submission to the queue. 
 	//we want to wait on the _presentSemaphore, as that semaphore is signaled when the swapchain is ready
 	//we will signal the _renderSemaphore, to signal that rendering has finished
 
-	VkSubmitInfo submit = {};
-	submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submit.pNext = nullptr;
-
+	VkSubmitInfo submit = viinit::submitInfo(&cmd);
 	VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
 	submit.pWaitDstStageMask = &waitStage;
@@ -172,19 +164,15 @@ void ViEngine::draw() {
 	submit.signalSemaphoreCount = 1;
 	submit.pSignalSemaphores = &renderSemaphore;
 
-	submit.commandBufferCount = 1;
-	submit.pCommandBuffers = &cmd;
-
 	//submit command buffer to the queue and execute it.
 	// _renderFence will now block until the graphic commands finish execution
 	VK_CHECK(vkQueueSubmit(graphicsQueue, 1, &submit, renderFence));
 
-	// this will put the image we just rendered into the visible window.
-	// we want to wait on the _renderSemaphore for that,
-	// as it's necessary that drawing commands have finished before the image is displayed to the user
-	VkPresentInfoKHR presentInfo = {};
-	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-	presentInfo.pNext = nullptr;
+	//prepare present
+	// this will put the image we just rendered to into the visible window.
+	// we want to wait on the _renderSemaphore for that, 
+	// as its necessary that drawing commands have finished before the image is displayed to the user
+	VkPresentInfoKHR presentInfo = viinit::presentInfo();
 
 	presentInfo.pSwapchains = &swapchain;
 	presentInfo.swapchainCount = 1;
@@ -258,7 +246,13 @@ void ViEngine::initVulkan() {
 void ViEngine::initSwapchain() {
 	vkb::SwapchainBuilder swapchainBuilder{ chosenGPU,device,surface };
 
-	vkb::Swapchain vkbSwapchain = swapchainBuilder.use_default_format_selection().set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR).set_desired_extent(windowExtent.width, windowExtent.height).build().value();
+	vkb::Swapchain vkbSwapchain = swapchainBuilder
+		.use_default_format_selection()
+		//use vsync present mode
+		.set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
+		.set_desired_extent(windowExtent.width, windowExtent.height)
+		.build()
+		.value();
 
 	//store swapchain and its related images
 	swapchain = vkbSwapchain.swapchain;
@@ -269,6 +263,38 @@ void ViEngine::initSwapchain() {
 
 	mainDeletionQueue.push_function([=]() {
 		vkDestroySwapchainKHR(device, swapchain, nullptr);
+		});
+
+	//depth image size will match the window
+	VkExtent3D depthImageExtent = {
+		windowExtent.width,
+		windowExtent.height,
+		1
+	};
+
+	//hardcoding the depth format to 32 bit float
+	depthFormat = VK_FORMAT_D32_SFLOAT;
+
+	//the depth image will be a image with the format we selected and Depth Attachment usage flag
+	VkImageCreateInfo dimg_info = viinit::imageCreateInfo(depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, depthImageExtent);
+
+	//for the depth image, we want to allocate it from gpu local memory
+	VmaAllocationCreateInfo dimg_allocinfo = {};
+	dimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	dimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+	//allocate and create the image
+	vmaCreateImage(allocator, &dimg_info, &dimg_allocinfo, &depthImage.image, &depthImage.allocation, nullptr);
+
+	//build a image-view for the depth image to use for rendering
+	VkImageViewCreateInfo dview_info = viinit::imageviewCreateInfo(depthFormat, depthImage.image, VK_IMAGE_ASPECT_DEPTH_BIT);
+
+	VK_CHECK(vkCreateImageView(device, &dview_info, nullptr, &depthImageView));
+
+	//add to deletion queues
+	mainDeletionQueue.push_function([=]() {
+		vkDestroyImageView(device, depthImageView, nullptr);
+	vmaDestroyImage(allocator, depthImage.image, depthImage.allocation);
 		});
 }
 
@@ -315,22 +341,61 @@ void ViEngine::initDefaultRenderpass() {
 	color_attachment_ref.attachment = 0;
 	color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+	VkAttachmentDescription depth_attachment = {};
+	// Depth attachment
+	depth_attachment.flags = 0;
+	depth_attachment.format = depthFormat;
+	depth_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+	depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	depth_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	depth_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+	VkAttachmentReference depth_attachment_ref = {};
+	depth_attachment_ref.attachment = 1;
+	depth_attachment_ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
 	//we are going to create 1 subpass, which is the minimum you can do
 	VkSubpassDescription subpass = {};
 	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 	subpass.colorAttachmentCount = 1;
 	subpass.pColorAttachments = &color_attachment_ref;
+	//hook the depth attachment into the subpass
+	subpass.pDepthStencilAttachment = &depth_attachment_ref;
+
+	//array of 2 attachments, one for the color, and other for depth
+	VkAttachmentDescription attachments[2] = { color_attachment,depth_attachment };
 
 	VkRenderPassCreateInfo render_pass_info = {};
 	render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-
-	//connect the color attachment to the info
-	render_pass_info.attachmentCount = 1;
-	render_pass_info.pAttachments = &color_attachment;
-	//connect the subpass to the info
+	//2 attachments from said array
+	render_pass_info.attachmentCount = 2;
+	render_pass_info.pAttachments = &attachments[0];
 	render_pass_info.subpassCount = 1;
 	render_pass_info.pSubpasses = &subpass;
 
+	VkSubpassDependency dependency = {};
+	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+	dependency.dstSubpass = 0;
+	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependency.srcAccessMask = 0;
+	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+	VkSubpassDependency depth_dependency = {};
+	depth_dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+	depth_dependency.dstSubpass = 0;
+	depth_dependency.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+	depth_dependency.srcAccessMask = 0;
+	depth_dependency.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+	depth_dependency.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+	VkSubpassDependency dependencies[2] = { dependency, depth_dependency };
+
+	render_pass_info.dependencyCount = 2;
+	render_pass_info.pDependencies = &dependencies[0];
 
 	VK_CHECK(vkCreateRenderPass(device, &render_pass_info, nullptr, &renderPass));
 
@@ -358,7 +423,13 @@ void ViEngine::initFramebuffers() {
 	//create framebuffers for each of the swapchain image views
 	for (int i = 0; i < swapchain_imagecount; i++) {
 
-		fb_info.pAttachments = &swapchainImageViews[i];
+		VkImageView attachments[2];
+		attachments[0] = swapchainImageViews[i];
+		attachments[1] = depthImageView;
+
+		fb_info.pAttachments = attachments;
+		fb_info.attachmentCount = 2;
+
 		VK_CHECK(vkCreateFramebuffer(device, &fb_info, nullptr, &framebuffers[i]));
 
 		mainDeletionQueue.push_function([=]() {
@@ -397,43 +468,42 @@ void ViEngine::initPipelines() {
 		std::cout << "Error when building the triangle fragment shader module" << std::endl;
 	}
 	else {
-		std::cout << "Triangle fragment shader successfully loaded" << std::endl;
+		std::cout << "Triangle fragment shader succesfully loaded" << std::endl;
 	}
 
 	VkShaderModule triangleVertexShader;
 	if (!loadShaderModule("../shaders/triangle.vert.spv", &triangleVertexShader))
 	{
 		std::cout << "Error when building the triangle vertex shader module" << std::endl;
-
 	}
 	else {
-		std::cout << "Triangle vertex shader successfully loaded" << std::endl;
+		std::cout << "Triangle vertex shader succesfully loaded" << std::endl;
 	}
 
-	//compile red triangle modules
+	//compile colored triangle modules
 	VkShaderModule redTriangleFragShader;
-	if (!loadShaderModule("../shaders/redTriangle.frag.spv", &redTriangleFragShader))
+	if (!loadShaderModule("../shaders/triangle.frag.spv", &redTriangleFragShader))
 	{
 		std::cout << "Error when building the triangle fragment shader module" << std::endl;
 	}
 	else {
-		std::cout << "Red Triangle fragment shader successfully loaded" << std::endl;
+		std::cout << "Red Triangle fragment shader succesfully loaded" << std::endl;
 	}
 
 	VkShaderModule redTriangleVertShader;
-	if (!loadShaderModule("../shaders/redTriangle.vert.spv", &redTriangleVertShader))
+	if (!loadShaderModule("../shaders/triangle.vert.spv", &redTriangleVertShader))
 	{
 		std::cout << "Error when building the triangle vertex shader module" << std::endl;
 	}
 	else {
-		std::cout << "Red Triangle vertex shader successfully loaded" << std::endl;
+		std::cout << "Red Triangle vertex shader succesfully loaded" << std::endl;
 	}
 
 	//build the pipeline layout that controls the inputs/outputs of the shader
 	//we are not using descriptor sets or other systems yet, so no need to use anything other than empty default
-	VkPipelineLayoutCreateInfo pipelineLayoutInfo = viinit::pipelineLayoutCreateInfo();
+	VkPipelineLayoutCreateInfo pipeline_layout_info = viinit::pipelineLayoutCreateInfo();
 
-	VK_CHECK(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &trianglePipelineLayout));
+	VK_CHECK(vkCreatePipelineLayout(device, &pipeline_layout_info, nullptr, &trianglePipelineLayout));
 
 	//build the stage-create-info for both vertex and fragment stages. This lets the pipeline know the shader modules per stage
 	PipelineBuilder pipelineBuilder;
@@ -445,7 +515,7 @@ void ViEngine::initPipelines() {
 		viinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, triangleFragShader));
 
 
-	//vertex input controls how to read vertices from vertex buffers. We aren't using it yet
+	//vertex input controls how to read vertices from vertex buffers. We arent using it yet
 	pipelineBuilder.vertexInputInfo = viinit::vertexInputStateCreateInfo();
 
 	//input assembly is the configuration for drawing triangle lists, strips, or individual points.
@@ -466,7 +536,7 @@ void ViEngine::initPipelines() {
 	//configure the rasterizer to draw filled triangles
 	pipelineBuilder.rasterizer = viinit::rasterizationStateCreateInfo(VK_POLYGON_MODE_FILL);
 
-	//we don't use multisampling, so just run the default one
+	//we dont use multisampling, so just run the default one
 	pipelineBuilder.multisampling = viinit::multisamplingStateCreateInfo();
 
 	//a single blend attachment with no blending and writing to RGBA
@@ -474,6 +544,10 @@ void ViEngine::initPipelines() {
 
 	//use the triangle layout we created
 	pipelineBuilder.pipelineLayout = trianglePipelineLayout;
+
+
+	//default depthtesting
+	pipelineBuilder.depthStencil = viinit::depthStencilCreateInfo(true, true, VK_COMPARE_OP_LESS_OR_EQUAL);
 
 	//finally build the pipeline
 	trianglePipeline = pipelineBuilder.buildPipeline(device, renderPass);
@@ -506,53 +580,53 @@ void ViEngine::initPipelines() {
 	pipelineBuilder.shaderStages.clear();
 
 	//compile mesh vertex shader
-
-
 	VkShaderModule meshVertShader;
 	if (!loadShaderModule("../shaders/tri_mesh.vert.spv", &meshVertShader))
 	{
 		std::cout << "Error when building the triangle vertex shader module" << std::endl;
 	}
 	else {
-		std::cout << "Red Triangle vertex shader successfully loaded" << std::endl;
+		std::cout << "Red Triangle vertex shader succesfully loaded" << std::endl;
 	}
 
 	//add the other shaders
-	pipelineBuilder.shaderStages.push_back(viinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, meshVertShader));
+	pipelineBuilder.shaderStages.push_back(
+		viinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, meshVertShader));
 
 	//make sure that triangleFragShader is holding the compiled colored_triangle.frag
-	pipelineBuilder.shaderStages.push_back(viinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, triangleFragShader));
+	pipelineBuilder.shaderStages.push_back(
+		viinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, triangleFragShader));
 
 	//we start from just the default empty pipeline layout info
 	VkPipelineLayoutCreateInfo mesh_pipeline_layout_info = viinit::pipelineLayoutCreateInfo();
 
 	//setup push constants
 	VkPushConstantRange push_constant;
-	//this push constant range starts at the beginning
+	//offset 0
 	push_constant.offset = 0;
-	//this push constant range takes up the size of a MeshPushConstants struct
+	//size of a MeshPushConstant struct
 	push_constant.size = sizeof(MeshPushConstants);
-	//this push constant range is accessible only in the vertex shader
+	//for the vertex shader
 	push_constant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
 	mesh_pipeline_layout_info.pPushConstantRanges = &push_constant;
 	mesh_pipeline_layout_info.pushConstantRangeCount = 1;
 
+	pipelineBuilder.depthStencil = viinit::depthStencilCreateInfo(true, true, VK_COMPARE_OP_LESS_OR_EQUAL);
+
 	VK_CHECK(vkCreatePipelineLayout(device, &mesh_pipeline_layout_info, nullptr, &meshPipelineLayout));
 
+	//hook the push constants layout
 	pipelineBuilder.pipelineLayout = meshPipelineLayout;
-
 	//build the mesh triangle pipeline
 	meshPipeline = pipelineBuilder.buildPipeline(device, renderPass);
 
-	//deleting all of the vulkan shaders
 	vkDestroyShaderModule(device, meshVertShader, nullptr);
 	vkDestroyShaderModule(device, redTriangleVertShader, nullptr);
 	vkDestroyShaderModule(device, redTriangleFragShader, nullptr);
 	vkDestroyShaderModule(device, triangleFragShader, nullptr);
 	vkDestroyShaderModule(device, triangleVertexShader, nullptr);
 
-	//adding the pipelines to the deletion queue
 	mainDeletionQueue.push_function([=]() {
 		vkDestroyPipeline(device, redTrianglePipeline, nullptr);
 	vkDestroyPipeline(device, trianglePipeline, nullptr);
@@ -664,7 +738,7 @@ void ViEngine::uploadMesh(Mesh& mesh) {
 
 VkPipeline PipelineBuilder::buildPipeline(VkDevice device, VkRenderPass pass) {
 	//make viewport state from our stored viewport and scissor.
-	//at the moment we won't support multiple viewports or scissors
+		//at the moment we wont support multiple viewports or scissors
 	VkPipelineViewportStateCreateInfo viewportState = {};
 	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 	viewportState.pNext = nullptr;
@@ -674,7 +748,7 @@ VkPipeline PipelineBuilder::buildPipeline(VkDevice device, VkRenderPass pass) {
 	viewportState.scissorCount = 1;
 	viewportState.pScissors = &scissor;
 
-	//setup dummy color blending. We aren't using transparent objects yet
+	//setup dummy color blending. We arent using transparent objects yet
 	//the blending is just "no blend", but we do write to the color attachment
 	VkPipelineColorBlendStateCreateInfo colorBlending = {};
 	colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
@@ -699,16 +773,17 @@ VkPipeline PipelineBuilder::buildPipeline(VkDevice device, VkRenderPass pass) {
 	pipelineInfo.pRasterizationState = &rasterizer;
 	pipelineInfo.pMultisampleState = &multisampling;
 	pipelineInfo.pColorBlendState = &colorBlending;
+	pipelineInfo.pDepthStencilState = &depthStencil;
 	pipelineInfo.layout = pipelineLayout;
 	pipelineInfo.renderPass = pass;
 	pipelineInfo.subpass = 0;
 	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
-	//it's easy to error out on create graphics pipeline, so we handle it a bit better than the common VK_CHECK case
+	//its easy to error out on create graphics pipeline, so we handle it a bit better than the common VK_CHECK case
 	VkPipeline newPipeline;
 	if (vkCreateGraphicsPipelines(
 		device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &newPipeline) != VK_SUCCESS) {
-		std::cout << "failed to create pipeline\n";
+		std::cout << "failed to create pipline\n";
 		return VK_NULL_HANDLE; // failed to create graphics pipeline
 	}
 	else
