@@ -37,4 +37,10 @@ namespace viinit {
 	VkSubmitInfo submitInfo(VkCommandBuffer* cmd);
 
 	VkPresentInfoKHR presentInfo();
+
+	VkWriteDescriptorSet writeDescriptorBuffer(VkDescriptorType type, VkDescriptorSet dstSet, VkDescriptorBufferInfo* bufferInfo, uint32_t binding);
+
+	VkDescriptorSetLayoutBinding descriptorsetLayoutBinding(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding);
+
+	VkFramebufferCreateInfo framebufferCreateInfo(VkRenderPass renderPass, VkExtent2D extent);
 }

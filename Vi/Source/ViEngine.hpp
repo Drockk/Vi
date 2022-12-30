@@ -35,12 +35,10 @@ struct RenderObject {
     glm::mat4 transformMatrix;
 };
 
-struct FrameData {
-    VkSemaphore presentSemaphore, renderSemaphore;
-    VkFence renderFence;
-
-    VkCommandPool commandPool;
-    VkCommandBuffer mainCommandBuffer;
+struct GPUCameraData {
+    glm::mat4 view;
+    glm::mat4 proj;
+    glm::mat4 viewproj;
 };
 
 #define VK_CHECK(x)                                                     \
@@ -69,6 +67,34 @@ struct DeletionQueue {
 
         deletors.clear();
     }
+};
+
+struct FrameData {
+    VkSemaphore presentSemaphore, renderSemaphore;
+    VkFence renderFence;
+
+    DeletionQueue frameDeletionQueue;
+
+    VkCommandPool commandPool;
+    VkCommandBuffer mainCommandBuffer;
+
+    AllocatedBuffer cameraBuffer;
+    VkDescriptorSet globalDescriptor;
+
+    AllocatedBuffer objectBuffer;
+    VkDescriptorSet objectDescriptor;
+};
+
+struct GPUSceneData {
+    glm::vec4 fogColor; // w is for exponent
+    glm::vec4 fogDistances; //x for min, y for max, zw unused.
+    glm::vec4 ambientColor;
+    glm::vec4 sunlightDirection; //w for sun power
+    glm::vec4 sunlightColor;
+};
+
+struct GPUObjectData {
+    glm::mat4 modelMatrix;
 };
 
 //number of frames to overlap when rendering
@@ -129,6 +155,7 @@ private:
     void initSyncStructures();
     void initPipelines();
     void initScene();
+    void initDescriptors();
 
     //loads a shader module from a spir-v file. Returns false if it errors
     bool loadShaderModule(const char* filePath, VkShaderModule* outShaderModule);
@@ -171,6 +198,21 @@ private:
 
     //getter for the frame we are rendering to right now.
     FrameData& getCurrentFrame();
+
+    AllocatedBuffer createBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
+
+    VkDescriptorSetLayout globalSetLayout;
+    VkDescriptorPool descriptorPool;
+    VkDescriptorSetLayout objectSetLayout;
+
+    GPUSceneData sceneParameters;
+    AllocatedBuffer sceneParameterBuffer;
+
+    VkPhysicalDeviceProperties gpuProperties;
+
+    size_t padUniformBufferSize(size_t originalSize);
+
+    FrameData& getLastFrame();
 };
 
 class PipelineBuilder {

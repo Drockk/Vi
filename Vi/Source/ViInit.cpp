@@ -253,3 +253,45 @@ VkPresentInfoKHR viinit::presentInfo()
 
 	return info;
 }
+
+VkWriteDescriptorSet viinit::writeDescriptorBuffer(VkDescriptorType type, VkDescriptorSet dstSet, VkDescriptorBufferInfo* bufferInfo, uint32_t binding)
+{
+	VkWriteDescriptorSet write = {};
+	write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	write.pNext = nullptr;
+
+	write.dstBinding = binding;
+	write.dstSet = dstSet;
+	write.descriptorCount = 1;
+	write.descriptorType = type;
+	write.pBufferInfo = bufferInfo;
+
+	return write;
+}
+
+VkDescriptorSetLayoutBinding viinit::descriptorsetLayoutBinding(VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding)
+{
+	VkDescriptorSetLayoutBinding setbind = {};
+	setbind.binding = binding;
+	setbind.descriptorCount = 1;
+	setbind.descriptorType = type;
+	setbind.pImmutableSamplers = nullptr;
+	setbind.stageFlags = stageFlags;
+
+	return setbind;
+}
+
+VkFramebufferCreateInfo viinit::framebufferCreateInfo(VkRenderPass renderPass, VkExtent2D extent)
+{
+	VkFramebufferCreateInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+	info.pNext = nullptr;
+
+	info.renderPass = renderPass;
+	info.attachmentCount = 1;
+	info.width = extent.width;
+	info.height = extent.height;
+	info.layers = 1;
+
+	return info;
+}
