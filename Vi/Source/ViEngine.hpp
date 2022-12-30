@@ -35,6 +35,14 @@ struct RenderObject {
     glm::mat4 transformMatrix;
 };
 
+struct FrameData {
+    VkSemaphore presentSemaphore, renderSemaphore;
+    VkFence renderFence;
+
+    VkCommandPool commandPool;
+    VkCommandBuffer mainCommandBuffer;
+};
+
 #define VK_CHECK(x)                                                     \
     do                                                                  \
     {                                                                   \
@@ -62,6 +70,9 @@ struct DeletionQueue {
         deletors.clear();
     }
 };
+
+//number of frames to overlap when rendering
+constexpr unsigned int FRAME_OVERLAP = 2;
 
 class ViEngine {
 public:
@@ -105,15 +116,10 @@ public:
     VkQueue graphicsQueue; //queue we will submit to
     uint32_t graphicsQueueFamily; //family of that queue
 
-    VkCommandPool commandPool; //the command pool for our commands
-    VkCommandBuffer mainCommandBuffer; //the buffer we will record into
-
     VkRenderPass renderPass;
 
     std::vector<VkFramebuffer> framebuffers;
 
-    VkSemaphore presentSemaphore, renderSemaphore;
-    VkFence renderFence;
 private:
     void initVulkan();
     void initSwapchain();
@@ -159,6 +165,12 @@ private:
 
     //our draw function
     void drawObjects(VkCommandBuffer cmd, RenderObject* first, int count);
+
+    //frame storage
+    FrameData frames[FRAME_OVERLAP];
+
+    //getter for the frame we are rendering to right now.
+    FrameData& getCurrentFrame();
 };
 
 class PipelineBuilder {
