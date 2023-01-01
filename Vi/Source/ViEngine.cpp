@@ -8,11 +8,26 @@
 #include <iostream>
 #include <fstream>
 
+#include "ViTextures.hpp"
+
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
 
 #include <glm/gtx/transform.hpp>
 
+constexpr bool bUseValidationLayers = true;
+
+using namespace std;
+#define VK_CHECK(x)                                                 \
+	do                                                              \
+	{                                                               \
+		VkResult err = x;                                           \
+		if (err)                                                    \
+		{                                                           \
+			std::cout <<"Detected Vulkan error: " << err << std::endl; \
+			abort();                                                \
+		}                                                           \
+	} while (0)
 
 void ViEngine::init() {
 	if (!glfwInit()) {
@@ -37,10 +52,11 @@ void ViEngine::init() {
 	initDescriptors();
 	initPipelines();
 
+	loadImages();
 	loadMeshes();
 
 	initScene();
-
+	//everything went fine
 	isInitialized = true;
 }
 void ViEngine::cleanup() {
@@ -110,8 +126,8 @@ void ViEngine::draw() {
 	VK_CHECK(vkEndCommandBuffer(cmd));
 
 	//prepare the submission to the queue. 
-	//we want to wait on the _presentSemaphore, as that semaphore is signaled when the swapchain is ready
-	//we will signal the _renderSemaphore, to signal that rendering has finished
+	//we want to wait on the presentSemaphore, as that semaphore is signaled when the swapchain is ready
+	//we will signal the renderSemaphore, to signal that rendering has finished
 
 	VkSubmitInfo submit = viinit::submitInfo(&cmd);
 	VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -125,12 +141,12 @@ void ViEngine::draw() {
 	submit.pSignalSemaphores = &getCurrentFrame().renderSemaphore;
 
 	//submit command buffer to the queue and execute it.
-	// _renderFence will now block until the graphic commands finish execution
+	// renderFence will now block until the graphic commands finish execution
 	VK_CHECK(vkQueueSubmit(graphicsQueue, 1, &submit, getCurrentFrame().renderFence));
 
 	//prepare present
 	// this will put the image we just rendered to into the visible window.
-	// we want to wait on the _renderSemaphore for that, 
+	// we want to wait on the renderSemaphore for that, 
 	// as its necessary that drawing commands have finished before the image is displayed to the user
 	VkPresentInfoKHR presentInfo = viinit::presentInfo();
 
@@ -167,7 +183,11 @@ void ViEngine::initVulkan() {
 	vkb::InstanceBuilder builder;
 
 	//make the Vulkan instance, with basic debug features
-	auto instRet = builder.set_app_name("Vi").request_validation_layers(true).use_default_debug_messenger().require_api_version(1, 1, 0).build();
+	auto instRet = builder.set_app_name("Vi")
+		.request_validation_layers(bUseValidationLayers)
+		.use_default_debug_messenger()
+		.require_api_version(1, 1, 0)
+		.build();
 
 	vkb::Instance vkbInst = instRet.value();
 
@@ -189,12 +209,8 @@ void ViEngine::initVulkan() {
 
 	//create the final Vulkan device
 	vkb::DeviceBuilder deviceBuilder{ physicalDevice };
-	// enable shader draw parameters feature to use gl_BaseInstance
-	VkPhysicalDeviceShaderDrawParametersFeatures shader_draw_parameters_features = {};
-	shader_draw_parameters_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETERS_FEATURES;
-	shader_draw_parameters_features.pNext = nullptr;
-	shader_draw_parameters_features.shaderDrawParameters = VK_TRUE;
-	vkb::Device vkbDevice = deviceBuilder.add_pNext(&shader_draw_parameters_features).build().value();
+
+	vkb::Device vkbDevice = deviceBuilder.build().value();
 
 	// Get the VkDevice handle used in the rest of a vulkan application
 	device = vkbDevice.device;
@@ -411,6 +427,19 @@ void ViEngine::initCommands()
 			vkDestroyCommandPool(device, frames[i].commandPool, nullptr);
 			});
 	}
+
+	VkCommandPoolCreateInfo uploadCommandPoolInfo = viinit::commandPoolCreateInfo(graphicsQueueFamily);
+	//create pool for upload context
+	VK_CHECK(vkCreateCommandPool(device, &uploadCommandPoolInfo, nullptr, &uploadContext.commandPool));
+
+	mainDeletionQueue.push_function([=]() {
+		vkDestroyCommandPool(device, uploadContext.commandPool, nullptr);
+		});
+
+	//allocate the default command buffer that we will use for rendering
+	VkCommandBufferAllocateInfo cmdAllocInfo = viinit::commandBufferAllocateInfo(uploadContext.commandPool, 1);
+
+	VK_CHECK(vkAllocateCommandBuffers(device, &cmdAllocInfo, &uploadContext.commandBuffer));
 }
 
 void ViEngine::initSyncStructures()
@@ -424,8 +453,6 @@ void ViEngine::initSyncStructures()
 	VkSemaphoreCreateInfo semaphoreCreateInfo = viinit::semaphoreCreateInfo();
 
 	for (int i = 0; i < FRAME_OVERLAP; i++) {
-
-
 
 		VK_CHECK(vkCreateFence(device, &fenceCreateInfo, nullptr, &frames[i].renderFence));
 
@@ -444,19 +471,32 @@ void ViEngine::initSyncStructures()
 		vkDestroySemaphore(device, frames[i].renderSemaphore, nullptr);
 			});
 	}
+
+	VkFenceCreateInfo uploadFenceCreateInfo = viinit::fenceCreateInfo();
+
+	VK_CHECK(vkCreateFence(device, &uploadFenceCreateInfo, nullptr, &uploadContext.uploadFence));
+	mainDeletionQueue.push_function([=]() {
+		vkDestroyFence(device, uploadContext.uploadFence, nullptr);
+		});
 }
 
 
 void ViEngine::initPipelines()
 {
 	VkShaderModule colorMeshShader;
-	if (!loadShaderModule("../shaders/triangle.frag.spv", &colorMeshShader))
+	if (!loadShaderModule("../shaders/default_lit.frag.spv", &colorMeshShader))
+	{
+		std::cout << "Error when building the colored mesh shader" << std::endl;
+	}
+
+	VkShaderModule texturedMeshShader;
+	if (!loadShaderModule("../shaders/textured_lit.frag.spv", &texturedMeshShader))
 	{
 		std::cout << "Error when building the colored mesh shader" << std::endl;
 	}
 
 	VkShaderModule meshVertShader;
-	if (!loadShaderModule("../shaders/tri_mesh.vert.spv", &meshVertShader))
+	if (!loadShaderModule("../shaders/tri_mesh_ssbo.vert.spv", &meshVertShader))
 	{
 		std::cout << "Error when building the mesh vertex shader module" << std::endl;
 	}
@@ -494,6 +534,18 @@ void ViEngine::initPipelines()
 
 	VkPipelineLayout meshPipLayout;
 	VK_CHECK(vkCreatePipelineLayout(device, &mesh_pipeline_layout_info, nullptr, &meshPipLayout));
+
+
+	//we start from  the normal mesh layout
+	VkPipelineLayoutCreateInfo textured_pipeline_layout_info = mesh_pipeline_layout_info;
+
+	VkDescriptorSetLayout texturedSetLayouts[] = { globalSetLayout, objectSetLayout,singleTextureSetLayout };
+
+	textured_pipeline_layout_info.setLayoutCount = 3;
+	textured_pipeline_layout_info.pSetLayouts = texturedSetLayouts;
+
+	VkPipelineLayout texturedPipeLayout;
+	VK_CHECK(vkCreatePipelineLayout(device, &textured_pipeline_layout_info, nullptr, &texturedPipeLayout));
 
 	//hook the push constants layout
 	pipelineBuilder.pipelineLayout = meshPipLayout;
@@ -545,13 +597,28 @@ void ViEngine::initPipelines()
 
 	createMaterial(meshPipeline, meshPipLayout, "defaultmesh");
 
+	pipelineBuilder.shaderStages.clear();
+	pipelineBuilder.shaderStages.push_back(
+		viinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, meshVertShader));
+
+	pipelineBuilder.shaderStages.push_back(
+		viinit::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, texturedMeshShader));
+
+	pipelineBuilder.pipelineLayout = texturedPipeLayout;
+	VkPipeline texPipeline = pipelineBuilder.buildPipeline(device, renderPass);
+	createMaterial(texPipeline, texturedPipeLayout, "texturedmesh");
+
+
 	vkDestroyShaderModule(device, meshVertShader, nullptr);
 	vkDestroyShaderModule(device, colorMeshShader, nullptr);
+	vkDestroyShaderModule(device, texturedMeshShader, nullptr);
 
 	mainDeletionQueue.push_function([=]() {
 		vkDestroyPipeline(device, meshPipeline, nullptr);
+	vkDestroyPipeline(device, texPipeline, nullptr);
 
 	vkDestroyPipelineLayout(device, meshPipLayout, nullptr);
+	vkDestroyPipelineLayout(device, texturedPipeLayout, nullptr);
 		});
 }
 
@@ -676,49 +743,101 @@ void ViEngine::loadMeshes()
 	Mesh monkeyMesh{};
 	monkeyMesh.loadFromObj("../assets/monkey_smooth.obj");
 
+	Mesh lostEmpire{};
+	lostEmpire.loadFromObj("../assets/lost_empire.obj");
+
 	uploadMesh(triMesh);
 	uploadMesh(monkeyMesh);
+	uploadMesh(lostEmpire);
 
 	meshes["monkey"] = monkeyMesh;
 	meshes["triangle"] = triMesh;
+	meshes["empire"] = lostEmpire;
 }
 
 
+void ViEngine::loadImages()
+{
+	Texture lostEmpire;
+
+	viutil::loadImageFromFile(*this, "../assets/lost_empire-RGBA.png", lostEmpire.image);
+
+	VkImageViewCreateInfo imageinfo = viinit::imageviewCreateInfo(VK_FORMAT_R8G8B8A8_SRGB, lostEmpire.image.image, VK_IMAGE_ASPECT_COLOR_BIT);
+	vkCreateImageView(device, &imageinfo, nullptr, &lostEmpire.imageView);
+
+	mainDeletionQueue.push_function([=]() {
+		vkDestroyImageView(device, lostEmpire.imageView, nullptr);
+		});
+
+	loadedTextures["empire_diffuse"] = lostEmpire;
+}
+
 void ViEngine::uploadMesh(Mesh& mesh)
 {
+	const size_t bufferSize = mesh.vertices.size() * sizeof(Vertex);
 	//allocate vertex buffer
-	VkBufferCreateInfo bufferInfo = {};
-	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bufferInfo.pNext = nullptr;
+	VkBufferCreateInfo stagingBufferInfo = {};
+	stagingBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	stagingBufferInfo.pNext = nullptr;
 	//this is the total size, in bytes, of the buffer we are allocating
-	bufferInfo.size = mesh.vertices.size() * sizeof(Vertex);
+	stagingBufferInfo.size = bufferSize;
 	//this buffer is going to be used as a Vertex Buffer
-	bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	stagingBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 
 
 	//let the VMA library know that this data should be writeable by CPU, but also readable by GPU
 	VmaAllocationCreateInfo vmaallocInfo = {};
-	vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+	vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+	AllocatedBuffer stagingBuffer;
 
 	//allocate the buffer
-	VK_CHECK(vmaCreateBuffer(allocator, &bufferInfo, &vmaallocInfo,
+	VK_CHECK(vmaCreateBuffer(allocator, &stagingBufferInfo, &vmaallocInfo,
+		&stagingBuffer.buffer,
+		&stagingBuffer.allocation,
+		nullptr));
+
+	//copy vertex data
+	void* data;
+	vmaMapMemory(allocator, stagingBuffer.allocation, &data);
+
+	memcpy(data, mesh.vertices.data(), mesh.vertices.size() * sizeof(Vertex));
+
+	vmaUnmapMemory(allocator, stagingBuffer.allocation);
+
+
+	//allocate vertex buffer
+	VkBufferCreateInfo vertexBufferInfo = {};
+	vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	vertexBufferInfo.pNext = nullptr;
+	//this is the total size, in bytes, of the buffer we are allocating
+	vertexBufferInfo.size = bufferSize;
+	//this buffer is going to be used as a Vertex Buffer
+	vertexBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+	//let the VMA library know that this data should be gpu native	
+	vmaallocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+	//allocate the buffer
+	VK_CHECK(vmaCreateBuffer(allocator, &vertexBufferInfo, &vmaallocInfo,
 		&mesh.vertexBuffer.buffer,
 		&mesh.vertexBuffer.allocation,
 		nullptr));
-
 	//add the destruction of triangle mesh buffer to the deletion queue
 	mainDeletionQueue.push_function([=]() {
 
 		vmaDestroyBuffer(allocator, mesh.vertexBuffer.buffer, mesh.vertexBuffer.allocation);
 		});
 
-	//copy vertex data
-	void* data;
-	vmaMapMemory(allocator, mesh.vertexBuffer.allocation, &data);
+	immediateSubmit([=](VkCommandBuffer cmd) {
+		VkBufferCopy copy;
+	copy.dstOffset = 0;
+	copy.srcOffset = 0;
+	copy.size = bufferSize;
+	vkCmdCopyBuffer(cmd, stagingBuffer.buffer, mesh.vertexBuffer.buffer, 1, &copy);
+		});
 
-	memcpy(data, mesh.vertices.data(), mesh.vertices.size() * sizeof(Vertex));
-
-	vmaUnmapMemory(allocator, mesh.vertexBuffer.allocation);
+	vmaDestroyBuffer(allocator, stagingBuffer.buffer, stagingBuffer.allocation);
 }
 
 
@@ -826,6 +945,12 @@ void ViEngine::drawObjects(VkCommandBuffer cmd, RenderObject* first, int count)
 
 			//object data descriptor
 			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 1, 1, &getCurrentFrame().objectDescriptor, 0, nullptr);
+
+			if (object.material->textureSet != VK_NULL_HANDLE) {
+				//texture descriptor
+				vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, object.material->pipelineLayout, 2, 1, &object.material->textureSet, 0, nullptr);
+
+			}
 		}
 
 		glm::mat4 model = object.transformMatrix;
@@ -861,6 +986,13 @@ void ViEngine::initScene()
 
 	renderables.push_back(monkey);
 
+	RenderObject map;
+	map.mesh = getMesh("empire");
+	map.material = getMaterial("texturedmesh");
+	map.transformMatrix = glm::translate(glm::vec3{ 5,-10,0 }); //glm::mat4{ 1.0f };
+
+	renderables.push_back(map);
+
 	for (int x = -20; x <= 20; x++) {
 		for (int y = -20; y <= 20; y++) {
 
@@ -874,6 +1006,35 @@ void ViEngine::initScene()
 			renderables.push_back(tri);
 		}
 	}
+
+	Material* texturedMat = getMaterial("texturedmesh");
+
+	VkDescriptorSetAllocateInfo allocInfo = {};
+	allocInfo.pNext = nullptr;
+	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocInfo.descriptorPool = descriptorPool;
+	allocInfo.descriptorSetCount = 1;
+	allocInfo.pSetLayouts = &singleTextureSetLayout;
+
+	vkAllocateDescriptorSets(device, &allocInfo, &texturedMat->textureSet);
+
+	VkSamplerCreateInfo samplerInfo = viinit::samplerCreateInfo(VK_FILTER_NEAREST);
+
+	VkSampler blockySampler;
+	vkCreateSampler(device, &samplerInfo, nullptr, &blockySampler);
+
+	mainDeletionQueue.push_function([=]() {
+		vkDestroySampler(device, blockySampler, nullptr);
+		});
+
+	VkDescriptorImageInfo imageBufferInfo;
+	imageBufferInfo.sampler = blockySampler;
+	imageBufferInfo.imageView = loadedTextures["empire_diffuse"].imageView;
+	imageBufferInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+	VkWriteDescriptorSet texture1 = viinit::writeDescriptorImage(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, texturedMat->textureSet, &imageBufferInfo, 0);
+
+	vkUpdateDescriptorSets(device, 1, &texture1, 0, nullptr);
 }
 
 AllocatedBuffer ViEngine::createBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage)
@@ -913,6 +1074,32 @@ size_t ViEngine::padUniformBufferSize(size_t originalSize)
 	return alignedSize;
 }
 
+void ViEngine::immediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function)
+{
+	VkCommandBuffer cmd = uploadContext.commandBuffer;
+	//begin the command buffer recording. We will use this command buffer exactly once, so we want to let vulkan know that
+	VkCommandBufferBeginInfo cmdBeginInfo = viinit::commandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+
+	VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
+
+
+	function(cmd);
+
+
+	VK_CHECK(vkEndCommandBuffer(cmd));
+
+	VkSubmitInfo submit = viinit::submitInfo(&cmd);
+
+
+	//submit command buffer to the queue and execute it.
+	// renderFence will now block until the graphic commands finish execution
+	VK_CHECK(vkQueueSubmit(graphicsQueue, 1, &submit, uploadContext.uploadFence));
+
+	vkWaitForFences(device, 1, &uploadContext.uploadFence, true, 9999999999);
+	vkResetFences(device, 1, &uploadContext.uploadFence);
+
+	vkResetCommandPool(device, uploadContext.commandPool, 0);
+}
 
 void ViEngine::initDescriptors()
 {
@@ -922,7 +1109,8 @@ void ViEngine::initDescriptors()
 	{
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 10 },
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 10 },
-		{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10 }
+		{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10 },
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 10 }
 	};
 
 	VkDescriptorPoolCreateInfo pool_info = {};
@@ -958,6 +1146,17 @@ void ViEngine::initDescriptors()
 	set2info.pBindings = &objectBind;
 
 	vkCreateDescriptorSetLayout(device, &set2info, nullptr, &objectSetLayout);
+
+	VkDescriptorSetLayoutBinding textureBind = viinit::descriptorsetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
+
+	VkDescriptorSetLayoutCreateInfo set3info = {};
+	set3info.bindingCount = 1;
+	set3info.flags = 0;
+	set3info.pNext = nullptr;
+	set3info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	set3info.pBindings = &textureBind;
+
+	vkCreateDescriptorSetLayout(device, &set3info, nullptr, &singleTextureSetLayout);
 
 
 	const size_t sceneParamBufferSize = FRAME_OVERLAP * padUniformBufferSize(sizeof(GPUSceneData));
@@ -1021,6 +1220,7 @@ void ViEngine::initDescriptors()
 		vmaDestroyBuffer(allocator, sceneParameterBuffer.buffer, sceneParameterBuffer.allocation);
 	vkDestroyDescriptorSetLayout(device, objectSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(device, globalSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(device, singleTextureSetLayout, nullptr);
 
 	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 

@@ -1,233 +1,246 @@
+// vulkan_guide.h : Include file for standard system include files,
+// or project specific include files.
+
 #pragma once
 
-#include "ViTypes.hpp"
-
-//bootstrap library
-#include "VkBootstrap.h"
-
-//GLFW
-#include <GLFW/glfw3.h>
-
-#include <iostream>
+#include <ViTypes.hpp>
+#include <vector>
 #include <functional>
 #include <deque>
+#include <ViMesh.hpp>
+#include <unordered_map>
 
-#include "ViMesh.hpp"
+#include <GLFW/glfw3.h>
 
-//add the include for glm to get matrices
 #include <glm/glm.hpp>
+#include <glm/gtx/transform.hpp>
 
-struct MeshPushConstants {
-    glm::vec4 data;
-    glm::mat4 render_matrix;
+class PipelineBuilder {
+public:
+
+	std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
+	VkPipelineVertexInputStateCreateInfo vertexInputInfo;
+	VkPipelineInputAssemblyStateCreateInfo inputAssembly;
+	VkViewport viewport;
+	VkRect2D scissor;
+	VkPipelineRasterizationStateCreateInfo rasterizer;
+	VkPipelineColorBlendAttachmentState colorBlendAttachment;
+	VkPipelineMultisampleStateCreateInfo multisampling;
+	VkPipelineLayout pipelineLayout;
+	VkPipelineDepthStencilStateCreateInfo depthStencil;
+	VkPipeline buildPipeline(VkDevice device, VkRenderPass pass);
 };
 
+
+
+struct DeletionQueue
+{
+	std::deque<std::function<void()>> deletors;
+
+	void push_function(std::function<void()>&& function) {
+		deletors.push_back(function);
+	}
+
+	void flush() {
+		// reverse iterate the deletion queue to execute all the functions
+		for (auto it = deletors.rbegin(); it != deletors.rend(); it++) {
+			(*it)(); //call functors
+		}
+
+		deletors.clear();
+	}
+};
+
+struct MeshPushConstants {
+	glm::vec4 data;
+	glm::mat4 render_matrix;
+};
+
+
 struct Material {
-    VkPipeline pipeline;
-    VkPipelineLayout pipelineLayout;
+	VkDescriptorSet textureSet{ VK_NULL_HANDLE };
+	VkPipeline pipeline;
+	VkPipelineLayout pipelineLayout;
+};
+
+struct Texture {
+	AllocatedImage image;
+	VkImageView imageView;
 };
 
 struct RenderObject {
-    Mesh* mesh;
+	Mesh* mesh;
 
-    Material* material;
+	Material* material;
 
-    glm::mat4 transformMatrix;
+	glm::mat4 transformMatrix;
+
+
 };
 
-struct GPUCameraData {
-    glm::mat4 view;
-    glm::mat4 proj;
-    glm::mat4 viewproj;
-};
-
-#define VK_CHECK(x)                                                     \
-    do                                                                  \
-    {                                                                   \
-        VkResult err = x;                                               \
-        if (err)                                                        \
-        {                                                               \
-            std::cout <<"Detected Vulkan error: " << err << std::endl;  \
-            abort();                                                    \
-        }                                                               \
-    } while (0)
-
-struct DeletionQueue {
-    std::deque<std::function<void()>> deletors;
-
-    void push_function(std::function<void()>&& function) {
-        deletors.push_back(function);
-    }
-
-    void flush() {
-        // reverse iterate the deletion queue to execute all the functions
-        for (auto it = deletors.rbegin(); it != deletors.rend(); it++) {
-            (*it)(); //call the function
-        }
-
-        deletors.clear();
-    }
-};
 
 struct FrameData {
-    VkSemaphore presentSemaphore, renderSemaphore;
-    VkFence renderFence;
+	VkSemaphore presentSemaphore, renderSemaphore;
+	VkFence renderFence;
 
-    DeletionQueue frameDeletionQueue;
+	DeletionQueue frameDeletionQueue;
 
-    VkCommandPool commandPool;
-    VkCommandBuffer mainCommandBuffer;
+	VkCommandPool commandPool;
+	VkCommandBuffer mainCommandBuffer;
 
-    AllocatedBuffer cameraBuffer;
-    VkDescriptorSet globalDescriptor;
+	AllocatedBuffer cameraBuffer;
+	VkDescriptorSet globalDescriptor;
 
-    AllocatedBuffer objectBuffer;
-    VkDescriptorSet objectDescriptor;
+	AllocatedBuffer objectBuffer;
+	VkDescriptorSet objectDescriptor;
 };
 
+struct UploadContext {
+	VkFence uploadFence;
+	VkCommandPool commandPool;
+	VkCommandBuffer commandBuffer;
+};
+struct GPUCameraData {
+	glm::mat4 view;
+	glm::mat4 proj;
+	glm::mat4 viewproj;
+};
+
+
 struct GPUSceneData {
-    glm::vec4 fogColor; // w is for exponent
-    glm::vec4 fogDistances; //x for min, y for max, zw unused.
-    glm::vec4 ambientColor;
-    glm::vec4 sunlightDirection; //w for sun power
-    glm::vec4 sunlightColor;
+	glm::vec4 fogColor; // w is for exponent
+	glm::vec4 fogDistances; //x for min, y for max, zw unused.
+	glm::vec4 ambientColor;
+	glm::vec4 sunlightDirection; //w for sun power
+	glm::vec4 sunlightColor;
 };
 
 struct GPUObjectData {
-    glm::mat4 modelMatrix;
+	glm::mat4 modelMatrix;
 };
 
-//number of frames to overlap when rendering
 constexpr unsigned int FRAME_OVERLAP = 2;
 
 class ViEngine {
 public:
 
-    bool isInitialized{ false };
-    int frameNumber { 0 };
+	bool isInitialized{ false };
+	int frameNumber{ 0 };
+	int selectedShader{ 0 };
 
-    VkExtent2D windowExtent{ 1700 , 900 };
+	VkExtent2D windowExtent{ 1700 , 900 };
 
-    GLFWwindow* window{ nullptr };
-    
-    //initializes everything in the engine
-    void init();
+	GLFWwindow* window{ nullptr };
 
-    //shuts down the engine
-    void cleanup();
+	VkInstance instance;
+	VkDebugUtilsMessengerEXT debugMessenger;
+	VkPhysicalDevice chosenGPU;
+	VkDevice device;
 
-    //draw loop
-    void draw();
+	VkPhysicalDeviceProperties gpuProperties;
 
-    //run main loop
-    void run();
+	FrameData frames[FRAME_OVERLAP];
 
-    VkInstance instance; // Vulkan library handle
-    VkDebugUtilsMessengerEXT debugMessenger; // Vulkan debug output handle
-    VkPhysicalDevice chosenGPU; // GPU chosen as the default device
-    VkDevice device; // Vulkan device for commands
-    VkSurfaceKHR surface; // Vulkan window surface
+	VkQueue graphicsQueue;
+	uint32_t graphicsQueueFamily;
 
-    VkSwapchainKHR swapchain; // from other articles
+	VkRenderPass renderPass;
 
-    // image format expected by the windowing system
-    VkFormat swapchainImageFormat;
+	VkSurfaceKHR surface;
+	VkSwapchainKHR swapchain;
+	VkFormat swapchainImageFormat;
 
-    //array of images from the swapchain
-    std::vector<VkImage> swapchainImages;
+	std::vector<VkFramebuffer> framebuffers;
+	std::vector<VkImage> swapchainImages;
+	std::vector<VkImageView> swapchainImageViews;
 
-    //array of image-views from the swapchain
-    std::vector<VkImageView> swapchainImageViews;
+	DeletionQueue mainDeletionQueue;
 
-    VkQueue graphicsQueue; //queue we will submit to
-    uint32_t graphicsQueueFamily; //family of that queue
+	VmaAllocator allocator; //vma lib allocator
 
-    VkRenderPass renderPass;
+	//depth resources
+	VkImageView depthImageView;
+	AllocatedImage depthImage;
 
-    std::vector<VkFramebuffer> framebuffers;
+	//the format for the depth image
+	VkFormat depthFormat;
 
+	VkDescriptorPool descriptorPool;
+
+	VkDescriptorSetLayout globalSetLayout;
+	VkDescriptorSetLayout objectSetLayout;
+	VkDescriptorSetLayout singleTextureSetLayout;
+
+	GPUSceneData sceneParameters;
+	AllocatedBuffer sceneParameterBuffer;
+
+	UploadContext uploadContext;
+	//initializes everything in the engine
+	void init();
+
+	//shuts down the engine
+	void cleanup();
+
+	//draw loop
+	void draw();
+
+	//run main loop
+	void run();
+
+	FrameData& getCurrentFrame();
+	FrameData& getLastFrame();
+
+	//default array of renderable objects
+	std::vector<RenderObject> renderables;
+
+	std::unordered_map<std::string, Material> materials;
+	std::unordered_map<std::string, Mesh> meshes;
+	std::unordered_map<std::string, Texture> loadedTextures;
+	//functions
+
+	//create material and add it to the map
+	Material* createMaterial(VkPipeline pipeline, VkPipelineLayout layout, const std::string& name);
+
+	//returns nullptr if it cant be found
+	Material* getMaterial(const std::string& name);
+
+	//returns nullptr if it cant be found
+	Mesh* getMesh(const std::string& name);
+
+	//our draw function
+	void drawObjects(VkCommandBuffer cmd, RenderObject* first, int count);
+
+	AllocatedBuffer createBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
+
+	size_t padUniformBufferSize(size_t originalSize);
+
+	void immediateSubmit(std::function<void(VkCommandBuffer cmd)>&& function);
 private:
-    void initVulkan();
-    void initSwapchain();
-    void initCommands();
-    void initDefaultRenderpass();
-    void initFramebuffers();
-    void initSyncStructures();
-    void initPipelines();
-    void initScene();
-    void initDescriptors();
 
-    //loads a shader module from a spir-v file. Returns false if it errors
-    bool loadShaderModule(const char* filePath, VkShaderModule* outShaderModule);
+	void initVulkan();
 
-    void loadMeshes();
+	void initSwapchain();
 
-    void uploadMesh(Mesh& mesh);
+	void initDefaultRenderpass();
 
-    DeletionQueue mainDeletionQueue;
-    VmaAllocator allocator;
+	void initFramebuffers();
 
-    VkPipeline meshPipeline;
-    VkPipelineLayout meshPipelineLayout;
+	void initCommands();
 
-    VkImageView depthImageView;
-    AllocatedImage depthImage;
-    VkFormat depthFormat;
+	void initSyncStructures();
 
-    //default array of renderable objects
-    std::vector<RenderObject> renderables;
+	void initPipelines();
 
-    std::unordered_map<std::string, Material> materials;
-    std::unordered_map<std::string, Mesh> meshes;
-    //functions
+	void initScene();
 
-    //create material and add it to the map
-    Material* createMaterial(VkPipeline pipeline, VkPipelineLayout layout, const std::string& name);
+	void initDescriptors();
 
-    //returns nullptr if it can't be found
-    Material* getMaterial(const std::string& name);
+	//loads a shader module from a spir-v file. Returns false if it errors
+	bool loadShaderModule(const char* filePath, VkShaderModule* outShaderModule);
 
-    //returns nullptr if it can't be found
-    Mesh* getMesh(const std::string& name);
+	void loadMeshes();
 
-    //our draw function
-    void drawObjects(VkCommandBuffer cmd, RenderObject* first, int count);
+	void loadImages();
 
-    //frame storage
-    FrameData frames[FRAME_OVERLAP];
-
-    //getter for the frame we are rendering to right now.
-    FrameData& getCurrentFrame();
-
-    AllocatedBuffer createBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
-
-    VkDescriptorSetLayout globalSetLayout;
-    VkDescriptorPool descriptorPool;
-    VkDescriptorSetLayout objectSetLayout;
-
-    GPUSceneData sceneParameters;
-    AllocatedBuffer sceneParameterBuffer;
-
-    VkPhysicalDeviceProperties gpuProperties;
-
-    size_t padUniformBufferSize(size_t originalSize);
-
-    FrameData& getLastFrame();
-};
-
-class PipelineBuilder {
-public:
-    std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
-    VkPipelineVertexInputStateCreateInfo vertexInputInfo;
-    VkPipelineInputAssemblyStateCreateInfo inputAssembly;
-    VkViewport viewport;
-    VkRect2D scissor;
-    VkPipelineRasterizationStateCreateInfo rasterizer;
-    VkPipelineColorBlendAttachmentState colorBlendAttachment;
-    VkPipelineMultisampleStateCreateInfo multisampling;
-    VkPipelineLayout pipelineLayout;
-    //others
-    VkPipelineDepthStencilStateCreateInfo depthStencil;
-
-    VkPipeline buildPipeline(VkDevice device, VkRenderPass pass);
+	void uploadMesh(Mesh& mesh);
 };
