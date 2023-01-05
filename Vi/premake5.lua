@@ -1,5 +1,5 @@
 project "Vi"
-    kind "ConsoleApp"
+    kind "StaticLib"
     language "C++"
     cppdialect "C++17"
     staticruntime "off"
@@ -7,29 +7,20 @@ project "Vi"
     targetdir ("%{wks.location}/bin/" .. outputdir .. "/%{prj.name}")
     objdir ("%{wks.location}/bin/int/" .. outputdir .. "/%{prj.name}")
 
+    pchheader "vipch.hpp"
+    pchsource "Source/vipch.cpp"
+
     files
     {
         "Source/**.hpp",
         "Source/**.cpp",
-        "%{IncludeDir.glm}/glm/**.hpp",
-        "%{IncludeDir.glm}/glm/**.inl",
-        "%{IncludeDir.stb}/**.h",
-        "%{IncludeDir.stb}/**.cpp",
-        "%{IncludeDir.tinyObjLoader}/**.h",
-        "%{IncludeDir.vkbootstrap}/*.h",
-        "%{IncludeDir.vkbootstrap}/*.cpp",
     }
 
     includedirs
     {
         "Source",
         "%{IncludeDir.glfw}",
-        "%{IncludeDir.glm}",
-        "%{IncludeDir.stb}",
-        "%{IncludeDir.tinyObjLoader}",
-        "%{IncludeDir.vma}",
-        "%{IncludeDir.vkbootstrap}",
-        "%{IncludeDir.VulkanSDK}"
+        "%{IncludeDir.spdlog}"
     }
 
     links

@@ -10,3 +10,6 @@
 [submodule "Vi/Vendor/VulkanMemoryAllocator"]
 	path = Vi/Vendor/VulkanMemoryAllocator
 	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+[submodule "Vi/Vendor/spdlog"]
+	path = Vi/Vendor/spdlog
+	url = https://github.com/gabime/spdlog.git

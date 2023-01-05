@@ -22,3 +22,4 @@ workspace "Vi"
     group ""
 
     include "Vi"
+    include "Sandbox"
