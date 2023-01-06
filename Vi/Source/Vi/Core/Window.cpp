@@ -1,5 +1,6 @@
 #include "vipch.hpp"
 #include "Vi/Core/Window.hpp"
+#include "Vi/Event/ApplicationEvent.hpp"
 
 namespace Vi {
     Window::Window(const std::string& name, const uint32_t width, const uint32_t height) : m_Data{ name, width, height } {
@@ -22,10 +23,11 @@ namespace Vi {
         });
 
         glfwSetWindowCloseCallback(m_Window, [](GLFWwindow* window) {
-            auto* data = glfwGetWindowUserPointer(window);
-            const auto windowData = static_cast<WindowData*>(data);
+            const auto& data = *static_cast<WindowData*>(glfwGetWindowUserPointer(window));
 
-            VI_CORE_DEBUG("GLFW Window Close Event {0}", windowData->height);
+            VI_CORE_DEBUG("GLFW Window Close Event");
+            WindowCloseEvent event;
+            data.eventCallback(event);
         });
     }
 
@@ -43,5 +45,9 @@ namespace Vi {
             m_Window = nullptr;
             glfwTerminate();
         }
+    }
+
+    void Window::setWindowCallback(const EventCallbackFn& callback) {
+        m_Data.eventCallback = callback;
     }
 }

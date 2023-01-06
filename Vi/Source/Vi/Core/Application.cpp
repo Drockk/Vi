@@ -12,6 +12,7 @@ namespace Vi {
 		VI_CORE_DEBUG("Application initzialization");
 
 		m_Window = std::make_unique<Window>(m_ApplicationName, m_Width, m_Height);
+		m_Window->setWindowCallback(VI_BIND_EVENT_FN(onEvent));
 	}
 
 	void Application::run() const {
@@ -26,5 +27,15 @@ namespace Vi {
 		VI_CORE_DEBUG("Application shuting down");
 
 		m_Window->shutdown();
+	}
+
+	void Application::onEvent(Event& e) {
+		EventDispatcher dispatcher(e);
+		dispatcher.dispatch<WindowCloseEvent>(VI_BIND_EVENT_FN(Application::onWindowCloseEvent));
+	}
+
+	bool Application::onWindowCloseEvent(WindowCloseEvent& event) {
+		m_Running = false;
+		return true;
 	}
 }

@@ -1,15 +1,20 @@
 #pragma once
+#include "Vi/Event/Event.hpp"
 
 #include <glfw/glfw3.h>
 
 namespace Vi {
     class Window {
     public:
+        using EventCallbackFn = std::function<void(Event&)>;
+
         Window(const std::string& name, uint32_t width, uint32_t height);
         ~Window();
 
         static void onUpdate();
         void shutdown();
+
+        void setWindowCallback(const EventCallbackFn& callback);
 
     private:
         GLFWwindow* m_Window;
@@ -18,7 +23,9 @@ namespace Vi {
             std::string name;
             uint32_t width;
             uint32_t height;
-            //TODO Add event callback
+            bool vSync;
+
+            EventCallbackFn eventCallback;
         };
 
         WindowData m_Data;
