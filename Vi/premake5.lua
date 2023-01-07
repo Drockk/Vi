@@ -14,13 +14,17 @@ project "Vi"
     {
         "Source/**.hpp",
         "Source/**.cpp",
+        "%{IncludeDir.vkbootstrap}/**.cpp",
+        "%{IncludeDir.vkbootstrap}/**.h",
     }
 
     includedirs
     {
         "Source",
         "%{IncludeDir.glfw}",
-        "%{IncludeDir.spdlog}"
+        "%{IncludeDir.spdlog}",
+        "%{IncludeDir.VulkanSDK}",
+        "%{IncludeDir.vkbootstrap}",
     }
 
     links

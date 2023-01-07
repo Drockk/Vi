@@ -11,8 +11,11 @@ namespace Vi {
 
 		VI_CORE_DEBUG("Application initzialization");
 
-		m_Window = std::make_unique<Window>(m_ApplicationName, m_Width, m_Height);
+		m_Window = std::make_shared<Window>(m_ApplicationName, m_Width, m_Height);
 		m_Window->setWindowCallback(VI_BIND_EVENT_FN(onEvent));
+
+		Context context;
+		context.init(m_Window);
 	}
 
 	void Application::run() const {

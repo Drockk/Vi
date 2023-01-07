@@ -1,4 +1,3 @@
-[20:13:32] [debug] VI: Application initzialization
-[20:13:32] [trace] VI: Creating GLFW Window (1600, 900)
-[20:13:32] [debug] VI: Application running
-[20:13:50] [debug] VI: GLFW Window Close Event 900
+[12:15:57] [debug] VI: Application initzialization
+[12:15:57] [trace] VI: Creating GLFW Window (1600, 900)
+[12:15:57] [debug] VI: Application running

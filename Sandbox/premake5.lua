@@ -17,7 +17,8 @@ project "Sandbox"
     {
         "Source",
         "%{wks.location}/Vi/Source",
-        "%{IncludeDir.glfw}"
+        "%{IncludeDir.glfw}",
+        "%{IncludeDir.VulkanSDK}",
     }
 
     links

@@ -3,6 +3,9 @@
 #include "Vi/Core/Window.hpp"
 #include "Vi/Event/ApplicationEvent.hpp"
 
+//TEMP
+#include "Vi/Renderer/Context.hpp"
+
 namespace Vi {
     class Application {
     public:
@@ -17,7 +20,7 @@ namespace Vi {
         bool onWindowCloseEvent(WindowCloseEvent& event);
 
     private:
-        std::unique_ptr<Window> m_Window;
+        std::shared_ptr<Window> m_Window;
 
         std::string m_ApplicationName;
 

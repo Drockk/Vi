@@ -3,7 +3,7 @@
 #include "Vi/Event/ApplicationEvent.hpp"
 
 namespace Vi {
-    Window::Window(const std::string& name, const uint32_t width, const uint32_t height) : m_Data{ name, width, height } {
+    Window::Window(const std::string& name, const uint32_t width, const uint32_t height) : m_Data{ name, width, height, true, nullptr } {
         VI_CORE_TRACE("Creating GLFW Window ({0}, {1})", width, height);
 
         ASSERT_CORE_LOG(glfwInit(), "Cannot initialize GLFW");
@@ -45,6 +45,11 @@ namespace Vi {
             m_Window = nullptr;
             glfwTerminate();
         }
+    }
+
+    void Window::createSurface(VkSurfaceKHR& surface, const VkInstance instance) const {
+        const auto result = glfwCreateWindowSurface(instance, m_Window, nullptr, &surface);
+        ASSERT_CORE_LOG(result == VK_SUCCESS, "Cannot create Surface");
     }
 
     void Window::setWindowCallback(const EventCallbackFn& callback) {

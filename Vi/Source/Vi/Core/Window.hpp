@@ -1,6 +1,7 @@
 #pragma once
 #include "Vi/Event/Event.hpp"
 
+#include <vulkan/vulkan.hpp>
 #include <glfw/glfw3.h>
 
 namespace Vi {
@@ -13,6 +14,8 @@ namespace Vi {
 
         static void onUpdate();
         void shutdown();
+
+        void createSurface(VkSurfaceKHR& surface, VkInstance instance) const;
 
         void setWindowCallback(const EventCallbackFn& callback);
 
