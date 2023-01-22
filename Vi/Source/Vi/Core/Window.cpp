@@ -31,28 +31,19 @@ namespace Vi {
         });
     }
 
-    Window::~Window() {
-        shutdown();
-    }
-
     void Window::onUpdate() {
         glfwPollEvents();
     }
 
-    void Window::shutdown() {
-        if (m_Window) {
-            glfwDestroyWindow(m_Window);
-            m_Window = nullptr;
-            glfwTerminate();
-        }
-    }
-
     void Window::createSurface(VkSurfaceKHR& surface, const VkInstance instance) const {
-        const auto result = glfwCreateWindowSurface(instance, m_Window, nullptr, &surface);
-        ASSERT_CORE_LOG(result == VK_SUCCESS, "Cannot create Surface");
+        glfwCreateWindowSurface(instance, m_Window, nullptr, &surface);
     }
 
     void Window::setWindowCallback(const EventCallbackFn& callback) {
         m_Data.eventCallback = callback;
+    }
+
+    const std::string& Window::getName() {
+        return m_Data.name;
     }
 }

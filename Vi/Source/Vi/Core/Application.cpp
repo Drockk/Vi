@@ -29,7 +29,7 @@ namespace Vi {
 	void Application::shutdown() const {
 		VI_CORE_DEBUG("Application shuting down");
 
-		m_Window->shutdown();
+		ShutdownQueue::flush();
 	}
 
 	void Application::onEvent(Event& e) {

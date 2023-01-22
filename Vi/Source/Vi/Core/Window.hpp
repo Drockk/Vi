@@ -10,14 +10,15 @@ namespace Vi {
         using EventCallbackFn = std::function<void(Event&)>;
 
         Window(const std::string& name, uint32_t width, uint32_t height);
-        ~Window();
+        ~Window() = default;
 
         static void onUpdate();
-        void shutdown();
 
         void createSurface(VkSurfaceKHR& surface, VkInstance instance) const;
 
         void setWindowCallback(const EventCallbackFn& callback);
+
+        const std::string& getName();
 
     private:
         GLFWwindow* m_Window;

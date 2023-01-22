@@ -19,6 +19,7 @@ project "Sandbox"
         "%{wks.location}/Vi/Source",
         "%{IncludeDir.glfw}",
         "%{IncludeDir.VulkanSDK}",
+        "%{IncludeDir.vkbootstrap}",
     }
 
     links
