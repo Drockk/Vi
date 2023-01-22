@@ -17,6 +17,8 @@ namespace Vi {
 		void getGraphicsQueue();
 		void getPresentQueue();
 
+		void createRenderpass();
+
 		VkSurfaceKHR m_Surface{nullptr};
 		vkb::Instance m_Instance;
 		vkb::Device m_Device;
@@ -24,5 +26,6 @@ namespace Vi {
 
 		VkQueue m_GraphicsQueue{};
 		VkQueue m_PresentQueue{};
+		VkRenderPass m_RenderPass{};
 	};
 }
