@@ -18,6 +18,7 @@ namespace Vi {
 		void getPresentQueue();
 
 		void createRenderpass();
+		void createGraphicsPipeline();
 
 		VkSurfaceKHR m_Surface{nullptr};
 		vkb::Instance m_Instance;
@@ -27,5 +28,6 @@ namespace Vi {
 		VkQueue m_GraphicsQueue{};
 		VkQueue m_PresentQueue{};
 		VkRenderPass m_RenderPass{};
+		VkPipelineLayout m_PipelineLayout;
 	};
 }
