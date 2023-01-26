@@ -7,6 +7,7 @@ namespace Vi {
 	class Context {
 	public:
 		void init(const std::shared_ptr<Window>& window);
+		void shutdown() const;
 
 	private:
 		void initInstance(const std::string& name);
@@ -20,7 +21,8 @@ namespace Vi {
 		void createRenderpass();
 		void createGraphicsPipeline();
 		static std::vector<char> readFile(const std::string& filename);
-		VkShaderModule createShaderModule(const std::vector<char>& code);
+		VkShaderModule createShaderModule(const std::vector<char>& code) const;
+		void createFramebuffers();
 
 		VkSurfaceKHR m_Surface{nullptr};
 		vkb::Instance m_Instance;
@@ -32,5 +34,8 @@ namespace Vi {
 		VkRenderPass m_RenderPass{};
 		VkPipelineLayout m_PipelineLayout{};
 		VkPipeline m_GraphicsPipeline{};
+		std::vector<VkImage> m_SwapchainImages;
+		std::vector<VkImageView> m_SwapchainImageViews;
+		std::vector<VkFramebuffer> m_Framebuffers;
 	};
 }

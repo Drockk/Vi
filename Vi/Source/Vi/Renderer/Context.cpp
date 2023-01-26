@@ -15,6 +15,12 @@ namespace Vi {
 
         createRenderpass();
         createGraphicsPipeline();
+
+        createFramebuffers();
+    }
+
+    void Context::shutdown() const {
+        vkDeviceWaitIdle(m_Device);
     }
 
     void Context::initInstance(const std::string& name) {
@@ -92,6 +98,14 @@ namespace Vi {
         destroy_swapchain(m_Swapchain);
 
         m_Swapchain = swapchainRet.value();
+        m_SwapchainImages = m_Swapchain.get_images().value();
+        m_SwapchainImageViews = m_Swapchain.get_image_views().value();
+
+        ShutdownQueue::addToQueue([device = m_Device, swapchainImageViews = m_SwapchainImageViews] {
+            for(const auto imageView: swapchainImageViews) {
+                vkDestroyImageView(device, imageView, nullptr);
+            }
+        });
 
         ShutdownQueue::addToQueue([swapchain = m_Swapchain] {
             destroy_swapchain(swapchain);
@@ -244,6 +258,10 @@ namespace Vi {
 
         ASSERT_CORE_LOG(vkCreatePipelineLayout(m_Device.device, &pipelineLayoutInfo, nullptr, &m_PipelineLayout) == VK_SUCCESS, "Failed to create pipeline layout");
 
+        ShutdownQueue::addToQueue([device = m_Device.device, pipelineLayout = m_PipelineLayout] {
+            vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+        });
+
         std::vector dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
         VkPipelineDynamicStateCreateInfo dynamicInfo = {};
@@ -269,6 +287,10 @@ namespace Vi {
 
         ASSERT_CORE_LOG(vkCreateGraphicsPipelines(m_Device.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_GraphicsPipeline) == VK_SUCCESS, "Failed to graphics create pipeline");
 
+        ShutdownQueue::addToQueue([device = m_Device.device, graphicsPipeline = m_GraphicsPipeline] {
+            vkDestroyPipeline(device, graphicsPipeline, nullptr);
+        });
+
         vkDestroyShaderModule(m_Device.device, fragModule, nullptr);
         vkDestroyShaderModule(m_Device.device, vertModule, nullptr);
     }
@@ -288,7 +310,7 @@ namespace Vi {
         return buffer;
     }
 
-    VkShaderModule Context::createShaderModule(const std::vector<char>& code) {
+    VkShaderModule Context::createShaderModule(const std::vector<char>& code) const {
         VkShaderModuleCreateInfo createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
         createInfo.codeSize = code.size();
@@ -300,5 +322,30 @@ namespace Vi {
         }
 
         return shaderModule;
+    }
+
+    void Context::createFramebuffers() {
+        m_Framebuffers.resize(m_SwapchainImageViews.size());
+
+        for(size_t i = 0; i < m_SwapchainImageViews.size(); i++) {
+            const VkImageView attachments[] = { m_SwapchainImageViews[i] };
+
+            VkFramebufferCreateInfo framebufferInfo = {};
+            framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+            framebufferInfo.renderPass = m_RenderPass;
+            framebufferInfo.attachmentCount = 1;
+            framebufferInfo.pAttachments = attachments;
+            framebufferInfo.width = m_Swapchain.extent.width;
+            framebufferInfo.height = m_Swapchain.extent.height;
+            framebufferInfo.layers = 1;
+
+            ASSERT_CORE_LOG(vkCreateFramebuffer(m_Device, &framebufferInfo, nullptr, &m_Framebuffers[i]) == VK_SUCCESS, "Failed to create framebuffer");
+
+            ShutdownQueue::addToQueue([device = m_Device.device, framebuffers = m_Framebuffers] {
+                for (auto framebuffer : framebuffers) {
+                    vkDestroyFramebuffer(device, framebuffer, nullptr);
+                }
+            });
+        }
     }
 }

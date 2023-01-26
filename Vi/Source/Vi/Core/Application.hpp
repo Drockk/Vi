@@ -28,6 +28,8 @@ namespace Vi {
         uint32_t m_Height;
 
         bool m_Running{ true };
+
+        Context m_Context;
     };
 }
 
