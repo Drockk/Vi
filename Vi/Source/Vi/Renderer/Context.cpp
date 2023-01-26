@@ -1,6 +1,8 @@
 #include "vipch.hpp"
 #include "Vi/Renderer/Context.hpp"
 
+#include <fstream>
+
 namespace Vi {
     void Context::init(const std::shared_ptr<Window>& window) {
         initInstance(window->getName());
@@ -153,8 +155,8 @@ namespace Vi {
     }
 
     void Context::createGraphicsPipeline() {
-        auto vertCode = readFile("shader/vert.spv");
-        auto fragCode = readFile("shader/frag.spv");
+        auto vertCode = readFile("shaders/vert.spv");
+        auto fragCode = readFile("shaders/frag.spv");
 
         VkShaderModule vertModule = createShaderModule(vertCode);
         ASSERT_CORE_LOG(vertModule != VK_NULL_HANDLE, "Failed to create shader module");
@@ -170,7 +172,7 @@ namespace Vi {
         VkPipelineShaderStageCreateInfo fragStageInfo = {};
         fragStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         fragStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-        fragStageInfo.module = vertModule;
+        fragStageInfo.module = fragModule;
         fragStageInfo.pName = "main";
 
         VkPipelineShaderStageCreateInfo shaderStages[] = { vertStageInfo, fragStageInfo };
@@ -265,9 +267,38 @@ namespace Vi {
         pipelineInfo.subpass = 0;
         pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
-        ASSERT_CORE_LOG(vkCreateGraphicsPipelines(m_Device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, m_GraphicsPipeline) == VK_SUCCESS, "Failed to create pipeline");
+        ASSERT_CORE_LOG(vkCreateGraphicsPipelines(m_Device.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_GraphicsPipeline) == VK_SUCCESS, "Failed to graphics create pipeline");
 
-        vkDestroyShaderModule(m_Device, fragModule, nullptr);
-        vkDestroyShaderModule(m_Device, vertModule, nullptr);
+        vkDestroyShaderModule(m_Device.device, fragModule, nullptr);
+        vkDestroyShaderModule(m_Device.device, vertModule, nullptr);
+    }
+
+    std::vector<char> Context::readFile(const std::string& filename) {
+        std::ifstream file(filename, std::ios::ate | std::ios::binary);
+
+        ASSERT_CORE_LOG(file.is_open(), "Failed to open shader file!");
+
+        const auto fileSize = static_cast<size_t>(file.tellg());
+        std::vector<char> buffer(fileSize);
+
+        file.seekg(0);
+        file.read(buffer.data(), static_cast<std::streamsize>(fileSize));
+        file.close();
+
+        return buffer;
+    }
+
+    VkShaderModule Context::createShaderModule(const std::vector<char>& code) {
+        VkShaderModuleCreateInfo createInfo = {};
+        createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        createInfo.codeSize = code.size();
+        createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+
+        VkShaderModule shaderModule;
+        if(vkCreateShaderModule(m_Device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
+            return VK_NULL_HANDLE;
+        }
+
+        return shaderModule;
     }
 }

@@ -19,6 +19,8 @@ namespace Vi {
 
 		void createRenderpass();
 		void createGraphicsPipeline();
+		static std::vector<char> readFile(const std::string& filename);
+		VkShaderModule createShaderModule(const std::vector<char>& code);
 
 		VkSurfaceKHR m_Surface{nullptr};
 		vkb::Instance m_Instance;
@@ -28,6 +30,7 @@ namespace Vi {
 		VkQueue m_GraphicsQueue{};
 		VkQueue m_PresentQueue{};
 		VkRenderPass m_RenderPass{};
-		VkPipelineLayout m_PipelineLayout;
+		VkPipelineLayout m_PipelineLayout{};
+		VkPipeline m_GraphicsPipeline{};
 	};
 }
