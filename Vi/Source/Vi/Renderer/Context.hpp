@@ -21,8 +21,9 @@ namespace Vi {
 		void createRenderpass();
 		void createGraphicsPipeline();
 		static std::vector<char> readFile(const std::string& filename);
-		VkShaderModule createShaderModule(const std::vector<char>& code) const;
+		[[nodiscard]] VkShaderModule createShaderModule(const std::vector<char>& code) const;
 		void createFramebuffers();
+		void createCommandPool();
 
 		VkSurfaceKHR m_Surface{nullptr};
 		vkb::Instance m_Instance;
@@ -37,5 +38,6 @@ namespace Vi {
 		std::vector<VkImage> m_SwapchainImages;
 		std::vector<VkImageView> m_SwapchainImageViews;
 		std::vector<VkFramebuffer> m_Framebuffers;
+		VkCommandPool m_CommandPool{};
 	};
 }

@@ -17,6 +17,7 @@ namespace Vi {
         createGraphicsPipeline();
 
         createFramebuffers();
+        createCommandPool();
     }
 
     void Context::shutdown() const {
@@ -341,11 +342,23 @@ namespace Vi {
 
             ASSERT_CORE_LOG(vkCreateFramebuffer(m_Device, &framebufferInfo, nullptr, &m_Framebuffers[i]) == VK_SUCCESS, "Failed to create framebuffer");
 
-            ShutdownQueue::addToQueue([device = m_Device.device, framebuffers = m_Framebuffers] {
-                for (auto framebuffer : framebuffers) {
+            for (const auto fb : m_Framebuffers) {
+                ShutdownQueue::addToQueue([device = m_Device.device, framebuffer = fb] {
                     vkDestroyFramebuffer(device, framebuffer, nullptr);
-                }
-            });
+                });
+            }
         }
+    }
+
+    void Context::createCommandPool() {
+        VkCommandPoolCreateInfo poolInfo = {};
+        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        poolInfo.queueFamilyIndex = m_Device.get_queue_index(vkb::QueueType::graphics).value();
+
+        ASSERT_CORE_LOG(vkCreateCommandPool(m_Device, &poolInfo, nullptr, &m_CommandPool) == VK_SUCCESS, "Failed to create command pool");
+
+        ShutdownQueue::addToQueue([device = m_Device.device, commandPool = m_CommandPool] {
+            vkDestroyCommandPool(device, commandPool, nullptr);
+        });
     }
 }
