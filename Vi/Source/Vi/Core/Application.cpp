@@ -17,11 +17,13 @@ namespace Vi {
 		m_Context.init(m_Window);
 	}
 
-	void Application::run() const {
+	void Application::run() {
 		VI_CORE_DEBUG("Application running");
 
 		while (m_Running) {
 			m_Window->onUpdate();
+
+			m_Context.draw();
 		}
 	}
 

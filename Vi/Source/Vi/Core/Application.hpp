@@ -13,7 +13,7 @@ namespace Vi {
         ~Application() = default;
 
         void init();
-        void run() const;
+        void run();
         void shutdown() const;
 
         void onEvent(Event&);

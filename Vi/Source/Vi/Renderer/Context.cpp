@@ -3,6 +3,8 @@
 
 #include <fstream>
 
+constexpr uint32_t MAX_FRAMES_IN_FLIGHT{ 2 };
+
 namespace Vi {
     void Context::init(const std::shared_ptr<Window>& window) {
         initInstance(window->getName());
@@ -18,10 +20,74 @@ namespace Vi {
 
         createFramebuffers();
         createCommandPool();
+        createCommandBuffers();
+
+        createSyncObjects();
     }
 
     void Context::shutdown() const {
         vkDeviceWaitIdle(m_Device);
+    }
+
+    void Context::draw() {
+        vkWaitForFences(m_Device, 1, &m_InFlightFences[m_CurrentFrame], VK_TRUE, UINT64_MAX);
+
+        uint32_t imageIndex{ 0 };
+        auto result = vkAcquireNextImageKHR(m_Device, m_Swapchain, UINT64_MAX, m_AvailableSemaphores[m_CurrentFrame], VK_NULL_HANDLE, &imageIndex);
+
+        if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+            //TODO Recreate swapchain
+        } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+            VI_CORE_ERROR("Error: {}", result);
+            ASSERT_CORE_LOG(false, "Failed to acquire swapchain image");
+        }
+
+        if (m_ImageInFlight[imageIndex] != VK_NULL_HANDLE) {
+            vkWaitForFences(m_Device, 1, &m_ImageInFlight[imageIndex], VK_TRUE, UINT64_MAX);
+        }
+        m_ImageInFlight[imageIndex] = m_InFlightFences[m_CurrentFrame];
+
+        VkSubmitInfo submitInfo{};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+        const VkSemaphore waitSemaphores[] = { m_AvailableSemaphores[m_CurrentFrame] };
+        constexpr VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+        submitInfo.waitSemaphoreCount = 1;
+        submitInfo.pWaitSemaphores = waitSemaphores;
+        submitInfo.pWaitDstStageMask = waitStages;
+
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &m_CommandBuffers[imageIndex];
+
+        const VkSemaphore signalSemaphores[] = { m_FinishedSemaphore[m_CurrentFrame] };
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.pSignalSemaphores = signalSemaphores;
+
+        vkResetFences(m_Device, 1, &m_InFlightFences[m_CurrentFrame]);
+
+        ASSERT_CORE_LOG(vkQueueSubmit(m_GraphicsQueue, 1, &submitInfo, m_InFlightFences[m_CurrentFrame]) == VK_SUCCESS, "Failed to submit draw command buffer");
+
+        VkPresentInfoKHR present_info = {};
+        present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+
+        present_info.waitSemaphoreCount = 1;
+        present_info.pWaitSemaphores = signalSemaphores;
+
+        const VkSwapchainKHR swapChains[] = { m_Swapchain };
+        present_info.swapchainCount = 1;
+        present_info.pSwapchains = swapChains;
+
+        present_info.pImageIndices = &imageIndex;
+
+        result = vkQueuePresentKHR(m_PresentQueue, &present_info);
+        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+            //TODO: Recreate swapchain
+        }
+        else if (result != VK_SUCCESS) {
+            ASSERT_CORE_LOG(false, "Failed to present swapchain image");
+        }
+
+        m_CurrentFrame = (m_CurrentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
     }
 
     void Context::initInstance(const std::string& name) {
@@ -413,6 +479,37 @@ namespace Vi {
             vkCmdEndRenderPass(m_CommandBuffers[i]);
 
             ASSERT_CORE_LOG(vkEndCommandBuffer(m_CommandBuffers[i])== VK_SUCCESS,"Failed to record command buffer");
+        }
+    }
+
+    void Context::createSyncObjects() {
+        m_AvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+        m_FinishedSemaphore.resize(MAX_FRAMES_IN_FLIGHT);
+        m_InFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+        m_ImageInFlight.resize(m_Swapchain.image_count, VK_NULL_HANDLE);
+
+        VkSemaphoreCreateInfo semaphoreCreateInfo{};
+        semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+        VkFenceCreateInfo fenceCreateInfo{};
+        fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+        for(size_t i{ 0 }; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            ASSERT_CORE_LOG(vkCreateSemaphore(m_Device, &semaphoreCreateInfo, nullptr, &m_AvailableSemaphores[i]) == VK_SUCCESS, "Failed to create semaphore");
+            ShutdownQueue::addToQueue([device = m_Device.device, semaphore = m_AvailableSemaphores[i]] {
+                vkDestroySemaphore(device, semaphore, nullptr);
+            });
+
+            ASSERT_CORE_LOG(vkCreateSemaphore(m_Device, &semaphoreCreateInfo, nullptr, &m_FinishedSemaphore[i]) == VK_SUCCESS, "Failed to create semaphore");
+            ShutdownQueue::addToQueue([device = m_Device.device, semaphore = m_FinishedSemaphore[i]] {
+                vkDestroySemaphore(device, semaphore, nullptr);
+            });
+
+            ASSERT_CORE_LOG(vkCreateFence(m_Device, &fenceCreateInfo, nullptr, &m_InFlightFences[i]) == VK_SUCCESS, "Failed to create semaphore");
+            ShutdownQueue::addToQueue([device = m_Device.device, fence = m_InFlightFences[i]] {
+                vkDestroyFence(device, fence, nullptr);
+            });
         }
     }
 }

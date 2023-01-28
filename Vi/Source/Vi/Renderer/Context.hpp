@@ -9,6 +9,8 @@ namespace Vi {
 		void init(const std::shared_ptr<Window>& window);
 		void shutdown() const;
 
+		void draw();
+
 	private:
 		void initInstance(const std::string& name);
 		void initSurface(const std::shared_ptr<Window>& window);
@@ -25,6 +27,7 @@ namespace Vi {
 		void createFramebuffers();
 		void createCommandPool();
 		void createCommandBuffers();
+		void createSyncObjects();
 
 		VkSurfaceKHR m_Surface{nullptr};
 		vkb::Instance m_Instance;
@@ -41,5 +44,11 @@ namespace Vi {
 		std::vector<VkFramebuffer> m_Framebuffers;
 		VkCommandPool m_CommandPool{};
 		std::vector<VkCommandBuffer> m_CommandBuffers;
+
+		std::vector<VkSemaphore> m_AvailableSemaphores;
+		std::vector<VkSemaphore> m_FinishedSemaphore;
+		std::vector<VkFence> m_InFlightFences;
+		std::vector<VkFence> m_ImageInFlight;
+		size_t m_CurrentFrame{ 0 };
 	};
 }
