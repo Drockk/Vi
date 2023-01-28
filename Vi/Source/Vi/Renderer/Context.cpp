@@ -361,4 +361,58 @@ namespace Vi {
             vkDestroyCommandPool(device, commandPool, nullptr);
         });
     }
+
+    void Context::createCommandBuffers() {
+        m_CommandBuffers.resize(m_Framebuffers.size());
+
+        VkCommandBufferAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocInfo.commandPool = m_CommandPool;
+        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocInfo.commandBufferCount = static_cast<uint32_t>(m_CommandBuffers.size());
+
+        ASSERT_CORE_LOG(vkAllocateCommandBuffers(m_Device, &allocInfo, m_CommandBuffers.data()) == VK_SUCCESS,"Failed to allocate command buffers");
+
+        for (size_t i{ 0 }; i < m_CommandBuffers.size(); i++) {
+            VkCommandBufferBeginInfo beginInfo{};
+            beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+            ASSERT_CORE_LOG(vkBeginCommandBuffer(m_CommandBuffers[i], &beginInfo) == VK_SUCCESS, "Failed to begin recording command buffer");
+
+            VkRenderPassBeginInfo renderPassInfo = {};
+            renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+            renderPassInfo.renderPass = m_RenderPass;
+            renderPassInfo.framebuffer = m_Framebuffers[i];
+            renderPassInfo.renderArea.offset = { 0, 0 };
+            renderPassInfo.renderArea.extent = m_Swapchain.extent;
+            VkClearValue clearColor{ { { 0.0f, 0.0f, 0.0f, 1.0f } } };
+            renderPassInfo.clearValueCount = 1;
+            renderPassInfo.pClearValues = &clearColor;
+
+            VkViewport viewport = {};
+            viewport.x = 0.0f;
+            viewport.y = 0.0f;
+            viewport.width = static_cast<float>(m_Swapchain.extent.width);
+            viewport.height = static_cast<float>(m_Swapchain.extent.height);
+            viewport.minDepth = 0.0f;
+            viewport.maxDepth = 1.0f;
+
+            VkRect2D scissor = {};
+            scissor.offset = { 0, 0 };
+            scissor.extent = m_Swapchain.extent;
+
+            vkCmdSetViewport(m_CommandBuffers[i], 0, 1, &viewport);
+            vkCmdSetScissor(m_CommandBuffers[i], 0, 1, &scissor);
+
+            vkCmdBeginRenderPass(m_CommandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+            vkCmdBindPipeline(m_CommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_GraphicsPipeline);
+
+            vkCmdDraw(m_CommandBuffers[i], 3, 1, 0, 0);
+
+            vkCmdEndRenderPass(m_CommandBuffers[i]);
+
+            ASSERT_CORE_LOG(vkEndCommandBuffer(m_CommandBuffers[i])== VK_SUCCESS,"Failed to record command buffer");
+        }
+    }
 }

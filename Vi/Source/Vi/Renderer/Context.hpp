@@ -24,6 +24,7 @@ namespace Vi {
 		[[nodiscard]] VkShaderModule createShaderModule(const std::vector<char>& code) const;
 		void createFramebuffers();
 		void createCommandPool();
+		void createCommandBuffers();
 
 		VkSurfaceKHR m_Surface{nullptr};
 		vkb::Instance m_Instance;
@@ -39,5 +40,6 @@ namespace Vi {
 		std::vector<VkImageView> m_SwapchainImageViews;
 		std::vector<VkFramebuffer> m_Framebuffers;
 		VkCommandPool m_CommandPool{};
+		std::vector<VkCommandBuffer> m_CommandBuffers;
 	};
 }
