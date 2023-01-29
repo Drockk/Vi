@@ -23,6 +23,11 @@ namespace Vi {
 		while (m_Running) {
 			m_Window->onUpdate();
 
+			//Add timer.
+			for (auto* layer: m_LayerStack) {
+				layer->onUpdate(0); //Temp
+			}
+
 			m_Renderer.draw();
 		}
 	}
@@ -38,6 +43,24 @@ namespace Vi {
 	void Application::onEvent(Event& e) {
 		EventDispatcher dispatcher(e);
 		dispatcher.dispatch<WindowCloseEvent>(VI_BIND_EVENT_FN(Application::onWindowCloseEvent));
+
+		for (auto it = m_LayerStack.rbegin(); it != m_LayerStack.rend(); ++it) {
+			if (e.handled) {
+				break;
+			}
+
+			(*it)->onEvent(e);
+		}
+	}
+
+	void Application::pushLayer(Layer* layer) {
+		m_LayerStack.pushLayer(layer);
+		layer->onAttach();
+	}
+
+	void Application::pushOverlay(Layer* layer) {
+		m_LayerStack.pushOverlay(layer);
+		layer->onAttach();
 	}
 
 	bool Application::onWindowCloseEvent(WindowCloseEvent& event) {

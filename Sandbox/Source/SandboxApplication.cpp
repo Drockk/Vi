@@ -1,7 +1,8 @@
 #include "SandboxApplication.hpp"
+#include "SandboxLayer.hpp"
 
 SandboxApplication::SandboxApplication(): Application("Sandbox") {
-
+    pushLayer(new SandboxLayer());
 }
 
 std::unique_ptr<Vi::Application> createApplication() {

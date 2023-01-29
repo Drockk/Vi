@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Vi/Core/LayerStack.hpp"
 #include "Vi/Core/Window.hpp"
 #include "Vi/Event/ApplicationEvent.hpp"
 
@@ -16,9 +17,13 @@ namespace Vi {
         void shutdown() const;
 
         void onEvent(Event&);
-        bool onWindowCloseEvent(WindowCloseEvent& event);
+
+        void pushLayer(Layer* layer);
+        void pushOverlay(Layer* layer);
 
     private:
+        bool onWindowCloseEvent(WindowCloseEvent& event);
+
         Renderer m_Renderer;
         std::shared_ptr<Window> m_Window;
 
@@ -28,7 +33,10 @@ namespace Vi {
         uint32_t m_Height;
 
         bool m_Running{ true };
+
+        LayerStack m_LayerStack;
     };
 }
 
+//To be defined in client app.
 std::unique_ptr<Vi::Application> createApplication();
