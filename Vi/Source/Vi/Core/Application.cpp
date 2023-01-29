@@ -14,7 +14,7 @@ namespace Vi {
 		m_Window = std::make_shared<Window>(m_ApplicationName, m_Width, m_Height);
 		m_Window->setWindowCallback(VI_BIND_EVENT_FN(onEvent));
 
-		m_Context.init(m_Window);
+		m_Renderer.init(m_Window);
 	}
 
 	void Application::run() {
@@ -23,14 +23,14 @@ namespace Vi {
 		while (m_Running) {
 			m_Window->onUpdate();
 
-			m_Context.draw();
+			m_Renderer.draw();
 		}
 	}
 
 	void Application::shutdown() const {
 		VI_CORE_DEBUG("Application shuting down");
 
-		m_Context.shutdown();
+		m_Renderer.shutdown();
 
 		ShutdownQueue::flush();
 	}

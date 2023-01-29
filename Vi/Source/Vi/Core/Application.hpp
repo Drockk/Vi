@@ -3,8 +3,7 @@
 #include "Vi/Core/Window.hpp"
 #include "Vi/Event/ApplicationEvent.hpp"
 
-//TEMP
-#include "Vi/Renderer/Context.hpp"
+#include "Vi/Renderer/Renderer.hpp"
 
 namespace Vi {
     class Application {
@@ -20,6 +19,7 @@ namespace Vi {
         bool onWindowCloseEvent(WindowCloseEvent& event);
 
     private:
+        Renderer m_Renderer;
         std::shared_ptr<Window> m_Window;
 
         std::string m_ApplicationName;
@@ -28,8 +28,6 @@ namespace Vi {
         uint32_t m_Height;
 
         bool m_Running{ true };
-
-        Context m_Context;
     };
 }
 
