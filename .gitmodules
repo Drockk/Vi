@@ -13,3 +13,9 @@
 [submodule "Vi/Vendor/spdlog"]
 	path = Vi/Vendor/spdlog
 	url = https://github.com/gabime/spdlog.git
+[submodule "Vi/vendor/glfw"]
+	path = Vi/vendor/glfw
+	url = https://github.com/Drockk/glfw.git
+[submodule "Vi/vendor/vk-bootstrap"]
+	path = Vi/vendor/vk-bootstrap
+	url = https://github.com/charles-lunarg/vk-bootstrap
