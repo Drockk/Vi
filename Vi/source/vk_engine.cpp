@@ -13,7 +13,7 @@ constexpr uint32_t WINDOW_HEIGHT{ 900 };
     do {                                                                    \
         VkResult err = x;                                                   \
         if(err) {                                                           \
-            std::cerr << std::format("Detected Vulkan error: {}\n", err);   \
+            std::cerr << "Detected Vulkan error: " << err << "\n";          \
             abort();                                                        \
         }                                                                   \
     } while(0)
@@ -46,7 +46,8 @@ void VulkanEngine::init() {
         }
     });
 
-    init_vulkan();
+    initVulkan();
+    initCommands();
 
     //everything went fine
     _isInitialized = true;
@@ -54,6 +55,8 @@ void VulkanEngine::init() {
 
 void VulkanEngine::cleanup() const {
     if (_isInitialized) {
+        vkDestroyCommandPool(_device, _commandPool, nullptr);
+
         vkDestroySwapchainKHR(_device, _swapchain, nullptr);
 
         //destroy swapchain resources
@@ -83,7 +86,7 @@ void VulkanEngine::run() {
     }
 }
 
-void VulkanEngine::init_vulkan() {
+void VulkanEngine::initVulkan() {
     //Instance
     vkb::InstanceBuilder builder;
 
@@ -112,9 +115,12 @@ void VulkanEngine::init_vulkan() {
 
     _device = vkbDevice.device;
     _chosenGPU = physicalDevice.physical_device;
+
+    _graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
+    _graphicsQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
 }
 
-void VulkanEngine::init_swapchain() {
+void VulkanEngine::initSwapchain() {
     vkb::SwapchainBuilder swapchainBuilder{ _chosenGPU,_device,_surface };
 
     auto vkbSwapchain = swapchainBuilder
@@ -131,4 +137,14 @@ void VulkanEngine::init_swapchain() {
     _swapchainImageViews = vkbSwapchain.get_image_views().value();
 
     _swapchainImageFormat = vkbSwapchain.image_format;
+}
+
+void VulkanEngine::initCommands() {
+    const VkCommandPoolCreateInfo commandPoolInfo = Vkinit::commandPoolCreateInfo(_graphicsQueueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+
+    VK_CHECK(vkCreateCommandPool(_device, &commandPoolInfo, nullptr, &_commandPool));
+
+    const VkCommandBufferAllocateInfo cmdAllocInfo = Vkinit::commandBufferAllocateInfo(_commandPool, 1);
+
+    VK_CHECK(vkAllocateCommandBuffers(_device, &cmdAllocInfo, &_mainCommandBuffer));
 }
