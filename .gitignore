@@ -1,0 +1,12 @@
+# Directories
+.vs/
+.vscode/
+bin/
+bin/int/
+
+# Files
+*.exe
+*.log
+*.sln*
+*.spv
+*.vcxproj*
