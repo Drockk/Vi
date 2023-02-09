@@ -16,7 +16,7 @@ workspace "Vi Engine"
     outputdir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
 
     group "Dependencies"
-        include "Viking/Vendor/glfw"
+        include "Vi/Vendor/glfw"
     group ""
 
     include "Sandbox"

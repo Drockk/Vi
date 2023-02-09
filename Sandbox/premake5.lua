@@ -14,7 +14,7 @@ project "Sandbox"
 
     includedirs
     {
-        "%{wks.location}/Viking/Source"
+        "%{wks.location}/Vi/Source"
     }
 
     links

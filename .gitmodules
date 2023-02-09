@@ -1,0 +1,3 @@
+[submodule "Vi/Vendor/glfw"]
+	path = Vi/Vendor/glfw
+	url = https://github.com/Drockk/glfw.git
