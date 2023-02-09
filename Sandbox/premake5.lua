@@ -1,6 +1,7 @@
 project "Sandbox"
     kind "ConsoleApp"
-    language "c++latest"
+    language "C++"
+    cppdialect "C++latest"
     staticruntime "off"
 
     targetdir ("%{wks.location}/bin/" .. outputdir .. "/%{prj.name}")

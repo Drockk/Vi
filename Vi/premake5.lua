@@ -1,11 +1,11 @@
-project "Viking"
+project "Vi"
     kind "StaticLib"
     language "C++"
-    cppdialect "C++17"
+    cppdialect "C++latest"
     staticruntime "off"
 
     targetdir ("%{wks.location}/bin/" .. outputdir .. "/%{prj.name}")
-    objdir ("%{wks.location}/bin-int/" .. outputdir .. "/%{prj.name}")
+    objdir ("%{wks.location}/bin/int/" .. outputdir .. "/%{prj.name}")
 
     pchheader "vipch.hpp"
     pchsource "Source/vipch.cpp"
