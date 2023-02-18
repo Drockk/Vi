@@ -1,3 +1,5 @@
+include "dependencies.lua"
+
 workspace "Vi Engine"
     architecture "x86_64"
     startproject "Viking"

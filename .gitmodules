@@ -1,3 +1,6 @@
 [submodule "Vi/Vendor/glfw"]
 	path = Vi/Vendor/glfw
 	url = https://github.com/Drockk/glfw.git
+[submodule "Vi/Vendor/spdlog"]
+	path = Vi/Vendor/spdlog
+	url = https://github.com/gabime/spdlog.git

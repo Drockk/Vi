@@ -2,13 +2,13 @@
 #include "Application.hpp"
 
 namespace Vi {
-    void Application::init()
-    {
+    void Application::init() {
+        Log::init();
     }
-    void Application::run()
-    {
+
+    void Application::run() {
     }
-    void Application::shutdown()
-    {
+
+    void Application::shutdown() {
     }
 }

@@ -3,8 +3,10 @@
 
 #include <memory>
 
+extern std::unique_ptr<Vi::Application> createApplication();
+
 int main() {
-    const auto application = std::make_unique<Vi::Application>();
+    auto application = createApplication();
 
     application->init();
     application->run();

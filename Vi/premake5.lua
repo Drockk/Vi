@@ -18,7 +18,8 @@ project "Vi"
 
     includedirs
     {
-        "Source"
+        "Source",
+        "%{IncludeDir.spdlog}"
     }
 
     defines
