@@ -1,4 +1,5 @@
 #pragma once
+#include "Vi/Core/Window.hpp"
 #include <memory>
 
 namespace Vi {
@@ -10,6 +11,10 @@ namespace Vi {
         void init();
         void run();
         void shutdown();
+
+    private:
+        bool m_Running{ true };
+        Window m_Window;
     };
 }
 
