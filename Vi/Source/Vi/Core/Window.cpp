@@ -23,6 +23,14 @@ namespace Vi {
             std::terminate();
         }
 
+        glfwSetErrorCallback([](int code, const char* description) {
+            VI_CORE_ERROR("GLFW Error({}): {}", code, description);
+        });
+
+        int major, minor, revision;
+        glfwGetVersion(&major, &minor, &revision);
+        VI_CORE_TRACE("GLFW version: {}.{}.{}", major, minor, revision);
+
         m_Window = glfwCreateWindow(m_Width, m_Height, m_Title.c_str(), nullptr, nullptr);
         if (not m_Window) {
             VI_CORE_CRITICAL("Cannot create Window");
@@ -31,5 +39,9 @@ namespace Vi {
         }
 
         glfwMakeContextCurrent(m_Window);
+
+        glfwSetWindowCloseCallback(m_Window, [](GLFWwindow* window) {
+            
+        });
     }
 }
