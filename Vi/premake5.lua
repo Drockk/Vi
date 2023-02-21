@@ -19,6 +19,7 @@ project "Vi"
     includedirs
     {
         "Source",
+        "%{IncludeDir.eventpp}",
         "%{IncludeDir.glfw}",
         "%{IncludeDir.spdlog}"
     }

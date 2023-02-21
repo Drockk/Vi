@@ -16,6 +16,7 @@ project "Sandbox"
     includedirs
     {
         "%{wks.location}/Vi/Source",
+        "%{IncludeDir.eventpp}",
         "%{IncludeDir.glfw}",
         "%{IncludeDir.spdlog}"
     }

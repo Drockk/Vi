@@ -4,3 +4,6 @@
 [submodule "Vi/Vendor/spdlog"]
 	path = Vi/Vendor/spdlog
 	url = https://github.com/gabime/spdlog.git
+[submodule "Vi/Vendor/eventpp"]
+	path = Vi/Vendor/eventpp
+	url = https://github.com/wqking/eventpp.git

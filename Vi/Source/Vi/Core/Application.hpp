@@ -1,5 +1,7 @@
 #pragma once
 #include "Vi/Core/Window.hpp"
+#include "Vi/Event/EventDispatcher.hpp"
+
 #include <memory>
 
 namespace Vi {
@@ -15,6 +17,8 @@ namespace Vi {
     private:
         bool m_Running{ true };
         Window m_Window;
+
+        EventDispatcher m_EventDispatcher;
     };
 }
 
