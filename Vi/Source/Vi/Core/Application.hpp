@@ -15,10 +15,12 @@ namespace Vi {
         void shutdown();
 
     private:
+        void onWindowClose(EventPointer event);
+
         bool m_Running{ true };
         Window m_Window;
 
-        EventDispatcher m_EventDispatcher;
+        std::shared_ptr<EventDispatcher> m_EventDispatcher;
     };
 }
 

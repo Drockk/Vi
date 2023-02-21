@@ -1,8 +1,9 @@
 #include "vipch.hpp"
 #include "Vi/Core/Window.hpp"
+#include "Vi/Event/ApplicationEvent.hpp"
 
 namespace Vi {
-    Window::Window(std::string title, uint32_t width, uint32_t height): m_Title(std::move(title)), m_Width(width), m_Height(height), m_Window(nullptr) {
+    Window::Window(WindowParameters parameters): m_Parameters(parameters), m_Window(nullptr) {
     }
 
     Window::~Window() {
@@ -31,7 +32,7 @@ namespace Vi {
         glfwGetVersion(&major, &minor, &revision);
         VI_CORE_TRACE("GLFW version: {}.{}.{}", major, minor, revision);
 
-        m_Window = glfwCreateWindow(m_Width, m_Height, m_Title.c_str(), nullptr, nullptr);
+        m_Window = glfwCreateWindow(m_Parameters.Width, m_Parameters.Height, m_Parameters.Title.c_str(), nullptr, nullptr);
         if (not m_Window) {
             VI_CORE_CRITICAL("Cannot create Window");
             glfwTerminate();
@@ -39,9 +40,11 @@ namespace Vi {
         }
 
         glfwMakeContextCurrent(m_Window);
+        glfwSetWindowUserPointer(m_Window, &m_Parameters);
 
         glfwSetWindowCloseCallback(m_Window, [](GLFWwindow* window) {
-            
+            WindowParameters& data = *static_cast<WindowParameters*>(glfwGetWindowUserPointer(window));
+            data.EventDispatcher->sendEvent(std::make_shared<WindowCloseEvent>());
         });
     }
 }
