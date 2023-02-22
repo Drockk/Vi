@@ -3,7 +3,7 @@
 
 class SandboxApplication: public Vi::Application {
 public:
-    SandboxApplication() = default;
+    SandboxApplication(): Application("Sandbox") {}
     ~SandboxApplication() override = default;
 };
 
