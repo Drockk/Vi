@@ -10,9 +10,9 @@ namespace Vi {
         ~LayerStack();
 
         void pushLayer(Layer* layer);
-        void pushOverlay(Layer* layer);
+        void pushOverlay(Layer* overlay);
         void popLayer(Layer* layer);
-        void popOverlay(Layer* layer);
+        void popOverlay(Layer* overlay);
 
         [[nodiscard]] std::vector<Layer*>::iterator begin() {
             return m_Layers.begin();

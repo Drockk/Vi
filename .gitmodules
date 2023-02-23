@@ -16,3 +16,6 @@
 [submodule "Vi/Vendor/yaml-cpp"]
 	path = Vi/Vendor/yaml-cpp
 	url = https://github.com/Drockk/yaml-cpp.git
+[submodule "Vi/Vendor/glm"]
+	path = Vi/Vendor/glm
+	url = https://github.com/g-truc/glm.git
