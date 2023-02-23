@@ -5,14 +5,18 @@ namespace Vi {
     class Layer
     {
     public:
-        Layer(const std::string& layerName);
+        Layer(std::string layerName = "Layer");
         virtual ~Layer() = default;
 
         virtual void onAttach();
         virtual void onUpdate();
         virtual void onDetach();
 
-    private:
+        [[nodiscard]] const std::string& getName() const {
+            return m_DebugName;
+        }
+
+    protected:
         std::string m_DebugName;
     };
 }

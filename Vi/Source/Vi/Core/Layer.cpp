@@ -2,7 +2,7 @@
 #include "Vi/Core/Layer.hpp"
 
 namespace Vi {
-    Layer::Layer(const std::string& layerName): m_DebugName(layerName) {
+    Layer::Layer(std::string layerName): m_DebugName(std::move(layerName)) {
     }
 
     void Layer::onAttach() {
