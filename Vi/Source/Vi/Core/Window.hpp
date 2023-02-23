@@ -1,30 +1,37 @@
 #pragma once
-#include "Vi/Event/EventDispatcher.hpp"
-#include <GLFW/glfw3.h>
 
-#include <string>
+#include "Vi/Core/Base.hpp"
+#include "Vi/Event/Event.hpp"
+
+#include <sstream>
 
 namespace Vi {
-    struct WindowParameters {
+    struct WindowProperties {
         std::string Title;
         uint32_t Width;
         uint32_t Height;
-        std::shared_ptr<EventDispatcher> EventDispatcher;
+
+        WindowProperties(const std::string& title = "Vi Engine", uint32_t width = 1600, uint32_t height = 900): Title(title), Width(width), Height(height) {
+        }
     };
 
-    class Window
-    {
+    // Interface representing a desktop system based Window
+    class Window {
     public:
-        Window() = default;
-        Window(WindowParameters parameters);
-        ~Window();
+        using EventCallbackFn = std::function<void(Event&)>;
+        virtual ~Window() = default;
 
-        [[noreturn]] void init();
-        [[noreturn]] void onUpdate();
+        virtual void onUpdate() = 0;
+        virtual uint32_t getWidth() const = 0;
+        virtual uint32_t getHeight() const = 0;
 
-    private:
-        WindowParameters m_Parameters;
+        // Window attributes
+        virtual void setEventCallback(const EventCallbackFn& callback) = 0;
+        virtual void setVSync(bool enabled) = 0;
+        virtual bool isVSync() const = 0;
 
-        GLFWwindow* m_Window;
+        virtual void* getNativeWindow() const = 0;
+
+        static Scope<Window> create(const WindowProperties& props = WindowProperties());
     };
 }

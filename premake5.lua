@@ -33,7 +33,7 @@ workspace "ViEngine"
     group ""
 
     group "Core"
-        -- include "Vi"
+        include "Vi"
         -- include "Vi-ScriptCore"
     group ""
 
