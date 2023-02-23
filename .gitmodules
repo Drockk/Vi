@@ -7,3 +7,12 @@
 [submodule "Vi/Vendor/eventpp"]
 	path = Vi/Vendor/eventpp
 	url = https://github.com/wqking/eventpp.git
+[submodule "Vi/vendor/Box2D"]
+	path = Vi/vendor/Box2D
+	url = https://github.com/Drockk/box2d.git
+[submodule "Vi/Vendor/imgui"]
+	path = Vi/Vendor/imgui
+	url = https://github.com/Drockk/imgui.git
+[submodule "Vi/Vendor/yaml-cpp"]
+	path = Vi/Vendor/yaml-cpp
+	url = https://github.com/Drockk/yaml-cpp.git
